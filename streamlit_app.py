@@ -1333,18 +1333,25 @@ def main():
                         st.rerun()
     
     elif page == "🔍 Scrape Reviews":
-        st.header("Find Target Software Users")
-        st.markdown("Enter review page URLs (one per line) containing reviews. Only use sites where scraping is allowed by their terms.")
+        st.header("🔍 Scrape Reviews")
+        st.markdown("Find negative reviews about target software (Bullhorn, Mindscope, Avionté, etc.) from multiple sources.")
         
-        st.info("✅ **Recommended sites:** G2.com, GetApp.com, TrustRadius.com, SoftwareAdvice.com\n\n❌ **Do NOT use:** Capterra.com (explicitly forbids automation)")
+        # Tabs for different review sources
+        tab1, tab2, tab3 = st.tabs(["📄 Review Sites", "💼 Indeed Reviews", "💼 LinkedIn Reviews"])
         
-        urls_text = st.text_area(
-            "Review Page URLs:",
-            height=150,
-            placeholder="https://www.getapp.com/hr-employee-management-software/a/avionte/\nhttps://g2.com/products/avionte-staffing-and-payroll/reviews"
-        )
-        
-        if st.button("🔍 Find Target Software Users", type="primary"):
+        with tab1:
+            st.subheader("Review Sites (G2, GetApp, TrustRadius, etc.)")
+            st.markdown("Enter review page URLs (one per line) containing reviews. Only use sites where scraping is allowed by their terms.")
+            st.info("✅ **Recommended sites:** G2.com, GetApp.com, TrustRadius.com, SoftwareAdvice.com\n\n❌ **Do NOT use:** Capterra.com (explicitly forbids automation)")
+            
+            urls_text = st.text_area(
+                "Review Page URLs:",
+                height=150,
+                placeholder="https://www.getapp.com/hr-employee-management-software/a/avionte/\nhttps://g2.com/products/avionte-staffing-and-payroll/reviews",
+                key="review_urls"
+            )
+            
+            if st.button("🔍 Find Target Software Users", type="primary", key="scrape_reviews"):
             urls = [url.strip() for url in urls_text.split('\n') if url.strip()]
             
             if not urls:
@@ -1389,6 +1396,109 @@ def main():
                                 st.error(f"  • {error}")
                 except Exception as e:
                     st.error(f"Error during scraping: {str(e)}")
+        
+        with tab2:
+            st.subheader("💼 Indeed Company Reviews")
+            st.markdown("Search Indeed company reviews for negative mentions of target software (Bullhorn, Mindscope, Avionté, etc.)")
+            
+            if not ENHANCED_DISCOVERY_AVAILABLE:
+                st.error("Enhanced discovery module not available")
+            else:
+                max_indeed = st.number_input("Max Results per Indicator:", min_value=1, max_value=100, value=50, key="max_indeed")
+                
+                if st.button("🔍 Search Indeed Reviews", type="primary", key="indeed_reviews"):
+                    with st.spinner("🔍 Searching Indeed for bad reviews..."):
+                        try:
+                            company_leads = discover_leads_from_indeed_reviews(current_indicators, max_indeed)
+                            
+                            if company_leads:
+                                # Convert to LeadReview format
+                                review_leads = []
+                                for company_lead in company_leads:
+                                    if company_lead.has_any_indicator():
+                                        review_lead = convert_company_lead_to_review_lead(
+                                            company_lead, LeadReview, calculate_lead_score
+                                        )
+                                        if review_lead:
+                                            review_leads.append(review_lead)
+                                
+                                if review_leads:
+                                    saved, duplicates = save_leads_to_db(review_leads)
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.success(f"✅ Found {len(review_leads)} negative reviews on Indeed!")
+                                        st.info(f"💾 Saved {saved} new leads")
+                                    with col2:
+                                        if duplicates > 0:
+                                            st.warning(f"⚠️ Skipped {duplicates} duplicates")
+                                    
+                                    st.subheader("📋 Discovered Leads from Indeed")
+                                    df = pd.DataFrame([{
+                                        'Score': f"{lead.lead_score:.1f}",
+                                        'Company': lead.company_name,
+                                        'Review Title': lead.review_title[:60] + '...' if len(lead.review_title) > 60 else lead.review_title,
+                                        'Source': lead.source_url
+                                    } for lead in review_leads])
+                                    st.dataframe(df, width='stretch', hide_index=True)
+                                else:
+                                    st.warning(f"Found {len(company_leads)} companies, but none had negative reviews mentioning target software.")
+                            else:
+                                st.info("No negative reviews found on Indeed. Try adjusting your target indicators or search criteria.")
+                        except Exception as e:
+                            st.error(f"Error searching Indeed reviews: {str(e)}")
+        
+        with tab3:
+            st.subheader("💼 LinkedIn Reviews & Posts")
+            st.markdown("Search LinkedIn posts/comments for negative mentions of target software")
+            st.info("⚠️ Note: LinkedIn has strict anti-scraping measures. Results may be limited without API access.")
+            
+            if not ENHANCED_DISCOVERY_AVAILABLE:
+                st.error("Enhanced discovery module not available")
+            else:
+                max_linkedin = st.number_input("Max Results per Indicator:", min_value=1, max_value=50, value=25, key="max_linkedin")
+                
+                if st.button("🔍 Search LinkedIn", type="primary", key="linkedin_reviews"):
+                    with st.spinner("🔍 Searching LinkedIn for negative mentions..."):
+                        try:
+                            company_leads = discover_leads_from_linkedin_reviews(current_indicators, max_linkedin)
+                            
+                            if company_leads:
+                                # Convert to LeadReview format
+                                review_leads = []
+                                for company_lead in company_leads:
+                                    if company_lead.has_any_indicator():
+                                        review_lead = convert_company_lead_to_review_lead(
+                                            company_lead, LeadReview, calculate_lead_score
+                                        )
+                                        if review_lead:
+                                            review_leads.append(review_lead)
+                                
+                                if review_leads:
+                                    saved, duplicates = save_leads_to_db(review_leads)
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.success(f"✅ Found {len(review_leads)} negative mentions on LinkedIn!")
+                                        st.info(f"💾 Saved {saved} new leads")
+                                    with col2:
+                                        if duplicates > 0:
+                                            st.warning(f"⚠️ Skipped {duplicates} duplicates")
+                                    
+                                    st.subheader("📋 Discovered Leads from LinkedIn")
+                                    df = pd.DataFrame([{
+                                        'Score': f"{lead.lead_score:.1f}",
+                                        'Company': lead.company_name,
+                                        'Review Title': lead.review_title[:60] + '...' if len(lead.review_title) > 60 else lead.review_title,
+                                        'Source': lead.source_url
+                                    } for lead in review_leads])
+                                    st.dataframe(df, width='stretch', hide_index=True)
+                                else:
+                                    st.warning(f"Found {len(company_leads)} companies, but none had negative mentions.")
+                            else:
+                                st.info("No negative mentions found on LinkedIn. LinkedIn requires authentication for most content.")
+                        except Exception as e:
+                            st.error(f"Error searching LinkedIn: {str(e)}")
     
     elif page == "🌐 Discover Leads":
         st.header("🌐 Multi-Source Lead Discovery")
