@@ -36,8 +36,12 @@ DEFAULT_INDICATORS = [
     )
 ]
 
-def load_indicators_from_file(filepath: str = "indicators.json") -> List[TargetIndicator]:
+def load_indicators_from_file(filepath: str = None) -> List[TargetIndicator]:
     """Load indicators from JSON file"""
+    if filepath is None:
+        # Use relative path for Streamlit Cloud compatibility
+        filepath = os.path.join(os.path.dirname(__file__), "indicators.json")
+    
     if not os.path.exists(filepath):
         return DEFAULT_INDICATORS
     
@@ -49,8 +53,12 @@ def load_indicators_from_file(filepath: str = "indicators.json") -> List[TargetI
         print(f"Error loading indicators: {e}")
         return DEFAULT_INDICATORS
 
-def save_indicators_to_file(indicators: List[TargetIndicator], filepath: str = "indicators.json"):
+def save_indicators_to_file(indicators: List[TargetIndicator], filepath: str = None):
     """Save indicators to JSON file"""
+    if filepath is None:
+        # Use relative path for Streamlit Cloud compatibility
+        filepath = os.path.join(os.path.dirname(__file__), "indicators.json")
+    
     try:
         data = [asdict(indicator) for indicator in indicators]
         with open(filepath, 'w') as f:

@@ -87,12 +87,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Database setup
-DATABASE = 'leads.db'
+# Database setup - use relative path for Streamlit Cloud compatibility
+DATABASE = os.path.join(os.path.dirname(__file__), 'leads.db')
 
 def get_db():
     """Get database connection"""
-    db = sqlite3.connect(DATABASE)
+    db = sqlite3.connect(DATABASE, check_same_thread=False)
     db.row_factory = sqlite3.Row
     return db
 
@@ -1189,6 +1189,8 @@ def scrape_review_pages(urls: List[str], max_pages: int = 3) -> List[LeadReview]
         except requests.RequestException as e:
             error_msg = str(e)
             if "403" in error_msg or "Forbidden" in error_msg:
+                # Provide helpful guidance for 403 errors
+                site_name = url.split('/')[2] if '/' in url else url
                 if "Playwright not available" in error_msg:
                     if not playwright_warning_shown:
                         st.warning(
@@ -1196,12 +1198,17 @@ def scrape_review_pages(urls: List[str], max_pages: int = 3) -> List[LeadReview]
                             "**Solutions:**\n"
                             "1. Try: `playwright install chromium`\n"
                             "2. Use Python 3.11/3.12 instead of 3.13+\n"
-                            "3. Use the 'Website Checker' tab in 'Discover Leads' for manual checking"
+                            "3. Use the 'Website Checker' tab in 'Discover Leads' for manual checking\n"
+                            "4. Try different review sites that don't require JavaScript"
                         )
                         playwright_warning_shown = True
-                    errors.append(f"{url}: Blocked (403) - Playwright required but not available")
+                    errors.append(f"{url}: Blocked (403) - Playwright required but not available. Try a different site or install Playwright.")
                 else:
-                    errors.append(f"{url}: Blocked (403 Forbidden) - Site is blocking automated access")
+                    errors.append(
+                        f"{url}: Blocked (403 Forbidden) - {site_name} is blocking automated access.\n"
+                        f"💡 **Tip:** This site may require JavaScript rendering or may block scrapers.\n"
+                        f"   Try: (1) Using Playwright if available, (2) Different review sites, or (3) Manual checking"
+                    )
             else:
                 errors.append(f"{url}: {error_msg}")
         except RuntimeError as e:
@@ -1333,7 +1340,7 @@ def main():
             placeholder="https://www.getapp.com/hr-employee-management-software/a/avionte/\nhttps://g2.com/products/avionte-staffing-and-payroll/reviews"
         )
         
-        if st.button("🔍 Find Frustrated Avionté Users", type="primary"):
+        if st.button("🔍 Find Target Software Users", type="primary"):
             urls = [url.strip() for url in urls_text.split('\n') if url.strip()]
             
             if not urls:
@@ -1381,7 +1388,7 @@ def main():
     
     elif page == "🌐 Discover Leads":
         st.header("🌐 Multi-Source Lead Discovery")
-        st.markdown("Discover potential Avionté users from Google Places, job boards, and company websites.")
+        st.markdown("Discover potential target software users from Google Places, job boards, and company websites.")
         
         if not LEAD_DISCOVERY_AVAILABLE:
             st.error("⚠️ Lead discovery module not available. Please ensure all dependencies are installed.")
@@ -1391,7 +1398,7 @@ def main():
             
             with tab1:
                 st.subheader("📍 Discover from Google Places")
-                st.markdown("Search Google Places for staffing agencies and check for Avionté subdomain usage (*.myavionte.com).")
+                st.markdown("Search Google Places for businesses and check for target software indicators (subdomains, links, keywords).")
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1404,14 +1411,20 @@ def main():
                     location = st.text_input("Location:", value="United States")
                 
                 with col2:
+                    # Try Streamlit secrets first, then env var
+                    try:
+                        default_key = st.secrets.get('GOOGLE_PLACES_API_KEY', '')
+                    except:
+                        default_key = os.getenv('GOOGLE_PLACES_API_KEY', '')
+                    
                     google_api_key = st.text_input(
                         "Google Places API Key:",
                         type="password",
-                        value=os.getenv('GOOGLE_PLACES_API_KEY', ''),
-                        help="Get your API key from Google Cloud Console"
+                        value=default_key,
+                        help="Get your API key from Google Cloud Console. For Streamlit Cloud, add it in Secrets."
                     )
                     max_results = st.number_input("Max Results per Query:", min_value=1, max_value=50, value=20)
-                    check_websites = st.checkbox("Check for Avionté subdomains (*.myavionte.com)", value=True)
+                    check_websites = st.checkbox("Check for target software indicators (subdomains, links)", value=True)
                 
                 if st.button("🔍 Discover from Google Places", type="primary"):
                     if not google_api_key:
@@ -1450,7 +1463,7 @@ def main():
                                             
                                             col1, col2 = st.columns(2)
                                             with col1:
-                                                st.success(f"✅ Found {len(review_leads)} companies using Avionté!")
+                                                st.success(f"✅ Found {len(review_leads)} companies using target software!")
                                                 st.info(f"💾 Saved {saved} new leads")
                                             with col2:
                                                 if duplicates > 0:
@@ -1462,13 +1475,13 @@ def main():
                                                 'Company': lead.company_name,
                                                 'Website': company_leads[i].website or 'N/A',
                                                 'Phone': company_leads[i].phone or 'N/A',
-                                                'Avionté Subdomain': '✅' if company_leads[i].avionte_mention else '❌',
+                                                'Target Found': '✅' if company_leads[i].has_any_indicator() else '❌',
                                                 'Subdomain URL': company_leads[i].avionte_evidence[:100] + '...' if company_leads[i].avionte_evidence and len(company_leads[i].avionte_evidence) > 100 else (company_leads[i].avionte_evidence or 'N/A'),
                                                 'Score': f"{lead.lead_score:.1f}"
                                             } for i, lead in enumerate(review_leads)])
                                             st.dataframe(df, width='stretch', hide_index=True)
                                         else:
-                                            st.warning(f"Found {len(company_leads)} companies, but none mentioned Avionté on their websites.")
+                                            st.warning(f"Found {len(company_leads)} companies, but none matched your target indicators.")
                                             
                                             # Show all companies found
                                             st.subheader("📋 All Companies Found")
@@ -1486,15 +1499,15 @@ def main():
             
             with tab2:
                 st.subheader("💼 Discover from Job Boards")
-                st.markdown("Search job postings for companies using Avionté.")
+                st.markdown("Search job postings for companies using target software.")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     job_queries = st.text_area(
                         "Search Queries (one per line):",
                         height=100,
-                        value="Avionté\nAvionte staffing software\nAvionte ATS",
-                        help="Search for job postings mentioning Avionté"
+                        value="staffing software\nrecruiting software\nATS software",
+                        help="Search for job postings mentioning target software"
                     )
                     job_location = st.text_input("Location:", value="United States", key="job_location")
                 
@@ -1525,7 +1538,7 @@ def main():
                                         
                                         col1, col2 = st.columns(2)
                                         with col1:
-                                            st.success(f"✅ Found {len(review_leads)} companies using Avionté!")
+                                            st.success(f"✅ Found {len(review_leads)} companies using target software!")
                                             st.info(f"💾 Saved {saved} new leads")
                                         with col2:
                                             if duplicates > 0:
@@ -1540,16 +1553,16 @@ def main():
                                         } for i, lead in enumerate(review_leads)])
                                         st.dataframe(df, width='stretch', hide_index=True)
                                     else:
-                                        st.warning("No companies found using Avionté in job postings.")
+                                        st.warning("No companies found using target software in job postings.")
                                 else:
                                     st.info("No results found. Try different search queries.")
                             except Exception as e:
                                 st.error(f"Error during job board search: {str(e)}")
             
             with tab3:
-                st.subheader("🔍 Check Websites for Avionté Subdomains")
-                st.markdown("Enter company domains to check for Avionté subdomain usage (*.myavionte.com).")
-                st.info("💡 **Tip:** Enter company domains (e.g., 'primlogix.com') - the app will check for 'primlogix.myavionte.com'")
+                st.subheader("🔍 Check Websites for Target Indicators")
+                st.markdown("Enter company domains to check for target software indicators (subdomains, links, keywords).")
+                st.info("💡 **Tip:** Enter company domains (e.g., 'company.com') - the app will check configured indicators")
                 
                 website_urls = st.text_area(
                     "Website URLs (one per line):",
@@ -1586,7 +1599,7 @@ def main():
                                 
                                 results.append({
                                     'URL': normalized_url,
-                                    'Avionté Subdomain': '✅' if avionte_found else '❌',
+                                    'Target Found': '✅' if avionte_found else '❌',
                                     'Subdomain URL': subdomain_url[:200] + '...' if subdomain_url and len(subdomain_url) > 200 else (subdomain_url or 'N/A'),
                                     'Email': website_data.get('email') if website_data and website_data.get('email') else 'N/A',
                                     'Phone': website_data.get('phone') if website_data and website_data.get('phone') else 'N/A'
@@ -1595,7 +1608,7 @@ def main():
                                 # If there's an error, still add the result with error info
                                 results.append({
                                     'URL': url,
-                                    'Avionté Subdomain': '❌',
+                                    'Target Found': '❌',
                                     'Subdomain URL': f"Error: {str(e)[:100]}",
                                     'Email': 'N/A',
                                     'Phone': 'N/A'
@@ -1611,10 +1624,10 @@ def main():
                         df = pd.DataFrame(results)
                         st.dataframe(df, width='stretch', hide_index=True)
                         
-                        # Create leads for companies with confirmed Avionté subdomains
-                        avionte_leads = [r for r in results if r['Avionté Subdomain'] == '✅']
+                        # Create leads for companies with confirmed target indicators
+                        avionte_leads = [r for r in results if r['Target Found'] == '✅']
                         if avionte_leads:
-                            if st.button("💾 Save Avionté Users as Leads"):
+                            if st.button("💾 Save Target Software Users as Leads"):
                                 review_leads = []
                                 for result in avionte_leads:
                                     # Extract company name from URL
@@ -1625,8 +1638,8 @@ def main():
                                     lead = LeadReview(
                                         company_name=company_name,
                                         reviewer_name="Website Check",
-                                        review_title=f"Avionté User: {company_name}",
-                                        review_text=f"Confirmed Avionté user via subdomain check. Subdomain: {result['Subdomain URL']}",
+                                        review_title=f"Target Software User: {company_name}",
+                                        review_text=f"Confirmed target software user via indicator check. Evidence: {result['Subdomain URL']}",
                                         rating=None,
                                         pain_tags="discovery",
                                         source_url=result['URL'],
@@ -1657,14 +1670,14 @@ def main():
             
             with tab1:
                 st.subheader("📱 Discover from Reddit")
-                st.markdown("Search Reddit for discussions about Avionté in staffing/recruiting communities.")
+                st.markdown("Search Reddit for discussions about target software in relevant communities.")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     reddit_queries = st.text_area(
                         "Search Queries (one per line):",
                         height=100,
-                        value="Avionté\nAvionte alternatives\nAvionte problems",
+                        value="staffing software\nrecruiting software\nsoftware alternatives",
                         help="Search terms to find in Reddit posts"
                     )
                     reddit_subreddits = st.text_area(
@@ -1717,7 +1730,7 @@ def main():
                                         } for i, lead in enumerate(review_leads)])
                                         st.dataframe(df, width='stretch', hide_index=True)
                                     else:
-                                        st.info("No leads found mentioning Avionté in Reddit posts.")
+                                        st.info("No leads found mentioning target software in Reddit posts.")
                                 else:
                                     st.info("No results found. Try different queries or subreddits.")
                             except Exception as e:
@@ -1725,12 +1738,12 @@ def main():
             
             with tab2:
                 st.subheader("📰 Discover from News & Articles")
-                st.markdown("Search news articles and blog posts for staffing agencies, then check for Avionté subdomains.")
+                st.markdown("Search news articles and blog posts for companies, then check for target software indicators.")
                 
                 news_queries = st.text_area(
                     "Search Queries (one per line):",
                     height=100,
-                    value="Avionté staffing software\nAvionte review\nAvionte alternatives",
+                    value="staffing software\nrecruiting software\nsoftware review",
                     help="Search terms for news articles"
                 )
                 max_news = st.number_input("Max Results per Query:", min_value=1, max_value=50, value=20, key="max_news")
@@ -1799,7 +1812,7 @@ def main():
                                 
                                 if company_leads:
                                     st.success(f"✅ Found {len(company_leads)} companies!")
-                                    st.info("💡 Tip: Use the 'Website Checker' tab to verify which ones use Avionté")
+                                    st.info("💡 Tip: Use the 'Website Checker' tab to verify which ones use target software")
                                     
                                     df = pd.DataFrame([{
                                         'Company': lead.company_name,
@@ -1810,7 +1823,7 @@ def main():
                                     st.dataframe(df, width='stretch', hide_index=True)
                                     
                                     # Option to check all websites
-                                    if st.button("🔍 Check All Websites for Avionté"):
+                                    if st.button("🔍 Check All Websites for Target Indicators"):
                                         checked_leads = []
                                         progress_bar = st.progress(0)
                                         for idx, lead in enumerate(company_leads):
@@ -1835,22 +1848,22 @@ def main():
                                             
                                             if review_leads:
                                                 saved, duplicates = save_leads_to_db(review_leads)
-                                                st.success(f"💾 Saved {saved} new leads with confirmed Avionté subdomains!")
+                                                st.success(f"💾 Saved {saved} new leads with confirmed target indicators!")
                                 else:
                                     st.info("No results found.")
                             except Exception as e:
                                 st.error(f"Error during directory search: {str(e)}")
             
             with tab4:
-                st.subheader("🔗 Avionté Subdomain Checker")
-                st.markdown("Check if companies use Avionté by verifying *.myavionte.com subdomains.")
-                st.info("💡 This confirms active Avionté usage - very high-quality leads!")
+                st.subheader("🔗 Target Software Subdomain Checker")
+                st.markdown("Check if companies use target software by verifying configured subdomain patterns.")
+                st.info("💡 This confirms active software usage - very high-quality leads!")
                 
                 company_domains = st.text_area(
                     "Company Domains (one per line):",
                     height=150,
                     placeholder="primlogix.com\nexample-staffing.com\nanother-agency.com",
-                    help="Enter company domains to check for Avionté subdomains"
+                    help="Enter company domains to check for target software subdomains"
                 )
                 
                 if st.button("🔍 Check Subdomains", type="primary"):
@@ -1858,12 +1871,12 @@ def main():
                     if not domains:
                         st.error("Please enter at least one company domain")
                     else:
-                        with st.spinner("🔍 Checking for Avionté subdomains..."):
+                        with st.spinner("🔍 Checking for target software subdomains..."):
                             try:
                                 company_leads = discover_leads_from_subdomain_check(domains)
                                 
                                 if company_leads:
-                                    st.success(f"✅ Found {len(company_leads)} confirmed Avionté users!")
+                                    st.success(f"✅ Found {len(company_leads)} confirmed target software users!")
                                     
                                     review_leads = []
                                     for company_lead in company_leads:
@@ -1881,13 +1894,13 @@ def main():
                                         
                                         df = pd.DataFrame([{
                                             'Company': lead.company_name,
-                                            'Avionté Subdomain': company_leads[i].website or 'N/A',
+                                            'Subdomain URL': company_leads[i].website or 'N/A',
                                             'Evidence': company_leads[i].avionte_evidence or 'N/A',
                                             'Score': f"{lead.lead_score:.1f}"
                                         } for i, lead in enumerate(review_leads)])
                                         st.dataframe(df, width='stretch', hide_index=True)
                                 else:
-                                    st.info("No Avionté subdomains found. These companies may not be using Avionté.")
+                                    st.info("No target software subdomains found. These companies may not be using the target software.")
                             except Exception as e:
                                 st.error(f"Error during subdomain check: {str(e)}")
             
@@ -1922,8 +1935,8 @@ def main():
                                 company_leads = discover_leads_comprehensive(sources=sources)
                                 
                                 if company_leads:
-                                    # Filter to only confirmed Avionté subdomains
-                                    avionte_leads = [l for l in company_leads if l.avionte_mention]
+                                    # Filter to only confirmed target indicators
+                                    avionte_leads = [l for l in company_leads if l.has_any_indicator()]
                                     
                                     if avionte_leads:
                                         review_leads = []
@@ -1958,9 +1971,9 @@ def main():
                                             } for i, lead in enumerate(review_leads)])
                                             st.dataframe(df, width='stretch', hide_index=True)
                                         else:
-                                            st.warning(f"Found {len(company_leads)} companies, but none mentioned Avionté.")
-                                    else:
-                                        st.info(f"Found {len(company_leads)} companies, but none mentioned Avionté.")
+                                            st.warning(f"Found {len(company_leads)} companies, but none matched your target indicators.")
+                                        else:
+                                            st.info(f"Found {len(company_leads)} companies, but none matched your target indicators.")
                                 else:
                                     st.info("No results found. Try different sources or queries.")
                             except Exception as e:
