@@ -86,7 +86,7 @@ except:
 
 # Page config
 st.set_page_config(
-    page_title="Generic Lead Generator",
+    page_title="Chevre - Lead Generator",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1243,7 +1243,7 @@ def main():
     if 'db_initialized' not in st.session_state:
         init_db()
         st.session_state.db_initialized = True
-    st.title("🚀 Generic Lead Generator")
+    st.title("🚀 Chevre - Lead Generator")
     
     # Load target indicators configuration
     try:

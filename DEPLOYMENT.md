@@ -5,9 +5,10 @@
 1. **Go to [share.streamlit.io](https://share.streamlit.io)**
 2. **Sign in** with your GitHub account
 3. **Click "New app"**
-4. **Select repository**: `carlcgb/lead-generator`
+4. **Select repository**: Your repository
 5. **Set main file path**: `streamlit_app.py`
-6. **Click "Deploy"**
+6. **Set app name**: `chevre` (to get `chevre.streamlit.app`)
+7. **Click "Deploy"**
 
 That's it! Your app will be live in minutes.
 
@@ -61,6 +62,6 @@ The app uses SQLite (`leads.db`) which is stored in the app's file system.
 ## Your App URL
 
 After deployment, your app will be available at:
-`https://lead-generator.streamlit.app`
+`https://chevre.streamlit.app`
 
-(Or a custom URL if you set one up)
+**Note:** Make sure to set the app name to `chevre` during deployment to get this URL.

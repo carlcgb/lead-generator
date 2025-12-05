@@ -158,11 +158,12 @@ All documentation is organized in the [`docs/`](docs/) directory:
 1. Go to [share.streamlit.io](https://share.streamlit.io)
 2. Sign in with GitHub
 3. Click "New app"
-4. Select repository: `carlcgb/lead-generator`
+4. Select your repository
 5. Main file: `streamlit_app.py`
-6. Click "Deploy"
+6. App name: `chevre` (to get `chevre.streamlit.app`)
+7. Click "Deploy"
 
-**Your app will be live at:** `https://lead-generator.streamlit.app`
+**Your app will be live at:** `https://chevre.streamlit.app`
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions and troubleshooting.
 
