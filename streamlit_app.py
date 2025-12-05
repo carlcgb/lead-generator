@@ -1764,7 +1764,7 @@ def main():
                                         df = pd.DataFrame([{
                                             'Company': lead.company_name,
                                             'Source': company_leads[i].source,
-                                            'Evidence': company_leads[i].avionte_evidence[:100] + '...' if company_leads[i].avionte_evidence and len(company_leads[i].avionte_evidence) > 100 else (company_leads[i].avionte_evidence or 'N/A'),
+                                            'Evidence': ((list(company_leads[i].indicator_evidence.values())[0][:100] + '...' if len(list(company_leads[i].indicator_evidence.values())[0]) > 100 else list(company_leads[i].indicator_evidence.values())[0]) if company_leads[i].has_any_indicator() and company_leads[i].indicator_evidence else 'N/A'),
                                             'Score': f"{lead.lead_score:.1f}"
                                         } for i, lead in enumerate(review_leads)])
                                         st.dataframe(df, width='stretch', hide_index=True)
@@ -1885,8 +1885,9 @@ def main():
                                                             evidence = company_lead.indicator_evidence[indicator_name]
                                                             break
                                                 if avionte_found:
-                                                    lead.avionte_mention = True
-                                                    lead.avionte_evidence = evidence  # This will be the subdomain URL
+                                                    # Update the lead with indicator information
+                                                    lead.target_indicators = company_lead.target_indicators
+                                                    lead.indicator_evidence = company_lead.indicator_evidence
                                                     checked_leads.append(lead)
                                                 time.sleep(1)
                                         progress_bar.empty()
