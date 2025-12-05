@@ -142,16 +142,6 @@ All documentation is organized in the [`docs/`](docs/) directory:
 - **[💻 CLI Guide](docs/CLI_README.md)** - Command-line usage
 - **[🔧 Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
-## Deployment
-
-Deploy to Streamlit Community Cloud (free):
-1. Push your code to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your repository
-4. Deploy!
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
-
 ## License
 
 MIT License
