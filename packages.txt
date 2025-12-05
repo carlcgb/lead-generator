@@ -1,3 +1,0 @@
-# System packages required for the application
-# Leave empty if no system packages are needed
-# Each package should be on its own line without comments
