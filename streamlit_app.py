@@ -78,7 +78,12 @@ if not PLAYWRIGHT_AVAILABLE and PLAYWRIGHT_DISABLED_REASON:
         # Not in Streamlit context, just print
         pass
 
-load_dotenv()
+# Load .env only for local development (not needed for Streamlit Cloud)
+# Streamlit Cloud uses st.secrets instead
+try:
+    load_dotenv()
+except:
+    pass  # .env file is optional
 
 # Page config
 st.set_page_config(
@@ -1411,10 +1416,12 @@ def main():
                     location = st.text_input("Location:", value="United States")
                 
                 with col2:
-                    # Try Streamlit secrets first, then env var
+                    # Try Streamlit secrets first (for Streamlit Cloud), then env var (for local dev)
+                    default_key = ''
                     try:
                         default_key = st.secrets.get('GOOGLE_PLACES_API_KEY', '')
                     except:
+                        # Not in Streamlit Cloud, try environment variable for local dev
                         default_key = os.getenv('GOOGLE_PLACES_API_KEY', '')
                     
                     google_api_key = st.text_input(

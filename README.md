@@ -28,11 +28,17 @@ pip install -r requirements.txt
    - Navigate to "⚙️ Configure Targets" in the sidebar
    - Add/edit indicators (name, subdomain pattern, keywords, link patterns)
 
-2. **Set Environment Variables** (optional):
+2. **Set API Keys** (optional):
+   
+   **For Local Development:**
    ```bash
    cp env_template.txt .env
    # Edit .env and add your Google Places API key
    ```
+   
+   **For Streamlit Cloud:**
+   - Go to your app settings → Secrets
+   - Add: `GOOGLE_PLACES_API_KEY = "your-key-here"`
 
 ### Usage
 

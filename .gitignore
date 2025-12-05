@@ -33,9 +33,11 @@ env/
 *.swo
 *~
 
-# Environment variables
+# Environment variables (never commit these!)
 .env
 .env.local
+.env.*
+*.env
 
 # Database
 *.db

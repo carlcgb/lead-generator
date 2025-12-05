@@ -90,6 +90,14 @@ def search_google_places(query: str, location: str = "United States", api_key: O
     except:
         pass
     
+    # Try Streamlit secrets first (for Streamlit Cloud), then environment variable
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get('GOOGLE_PLACES_API_KEY', None)
+        except:
+            pass
+    
     api_key = api_key or os.getenv('GOOGLE_PLACES_API_KEY')
     if not api_key:
         return []

@@ -1,16 +1,17 @@
-# Environment Variables Configuration
-# Copy this file to .env and fill in your API keys
+# Environment Variables Template
+# 
+# For LOCAL DEVELOPMENT only:
+# 1. Copy this file to .env
+# 2. Add your actual values
+# 3. .env is gitignored and will NOT be committed
+#
+# For STREAMLIT CLOUD:
+# Add secrets in Streamlit Cloud dashboard: Settings → Secrets
+# Format: TOML format
+# Example:
+# GOOGLE_PLACES_API_KEY = "your-key-here"
 
-# Google Places API Key (for lead discovery)
-# Get your key from: https://console.cloud.google.com/
-# Enable "Places API" and "Places API (New)" in your Google Cloud project
+# Google Places API Key (optional - only needed for Google Places discovery)
 GOOGLE_PLACES_API_KEY=your_google_places_api_key_here
 
-# Streamlit Cloud (if deploying)
-# Note: For Streamlit Cloud deployment, add secrets in the Streamlit Cloud dashboard
-# Go to: https://share.streamlit.io/ -> Your App -> Settings -> Secrets
-# Add your keys there, not in this file
-
-# Flask Secret Key (if using Flask version)
-SECRET_KEY=your_secret_key_here
-
+# Note: No other secrets needed - the app uses Streamlit secrets for cloud deployment
