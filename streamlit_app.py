@@ -41,9 +41,6 @@ try:
         discover_leads_from_directories,
         discover_leads_comprehensive,
         search_reddit_posts,
-        search_linkedin_jobs,
-        search_quora_questions,
-        search_twitter_mentions,
         check_avionte_subdomain
     )
     ENHANCED_DISCOVERY_AVAILABLE = True
@@ -1453,52 +1450,67 @@ def main():
                                     # Billing or API configuration error
                                     st.error(str(e))
                                     st.stop()
+                                
+                                if company_leads:
+                                    # Convert to LeadReview format
+                                    review_leads = []
+                                    for company_lead in company_leads:
+                                        if company_lead.has_any_indicator():
+                                            review_lead = convert_company_lead_to_review_lead(
+                                                company_lead, LeadReview, calculate_lead_score
+                                            )
+                                            if review_lead:
+                                                review_leads.append(review_lead)
                                     
-                                    if company_leads:
-                                        # Convert to LeadReview format
-                                        review_leads = []
-                                        for company_lead in company_leads:
-                                            if company_lead.avionte_mention:
-                                                review_lead = convert_company_lead_to_review_lead(
-                                                    company_lead, LeadReview, calculate_lead_score
-                                                )
-                                                if review_lead:
-                                                    review_leads.append(review_lead)
+                                    if review_leads:
+                                        saved, duplicates = save_leads_to_db(review_leads)
                                         
-                                        if review_leads:
-                                            saved, duplicates = save_leads_to_db(review_leads)
-                                            
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                st.success(f"✅ Found {len(review_leads)} companies using target software!")
-                                                st.info(f"💾 Saved {saved} new leads")
-                                            with col2:
-                                                if duplicates > 0:
-                                                    st.warning(f"⚠️ Skipped {duplicates} duplicates")
-                                            
-                                            # Show results
-                                            st.subheader("📋 Discovered Leads")
-                                            df = pd.DataFrame([{
-                                                'Company': lead.company_name,
-                                                'Website': company_leads[i].website or 'N/A',
-                                                'Phone': company_leads[i].phone or 'N/A',
-                                                'Target Found': '✅' if company_leads[i].has_any_indicator() else '❌',
-                                                'Subdomain URL': company_leads[i].avionte_evidence[:100] + '...' if company_leads[i].avionte_evidence and len(company_leads[i].avionte_evidence) > 100 else (company_leads[i].avionte_evidence or 'N/A'),
-                                                'Score': f"{lead.lead_score:.1f}"
-                                            } for i, lead in enumerate(review_leads)])
-                                            st.dataframe(df, width='stretch', hide_index=True)
-                                        else:
-                                            st.warning(f"Found {len(company_leads)} companies, but none matched your target indicators.")
-                                            
-                                            # Show all companies found
-                                            st.subheader("📋 All Companies Found")
-                                            df = pd.DataFrame([{
-                                                'Company': lead.company_name,
-                                                'Website': lead.website or 'N/A',
-                                                'Address': lead.address or 'N/A',
-                                                'Phone': lead.phone or 'N/A'
-                                            } for lead in company_leads])
-                                            st.dataframe(df, width='stretch', hide_index=True)
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            st.success(f"✅ Found {len(review_leads)} companies using target software!")
+                                            st.info(f"💾 Saved {saved} new leads")
+                                        with col2:
+                                            if duplicates > 0:
+                                                st.warning(f"⚠️ Skipped {duplicates} duplicates")
+                                        
+                                        # Show results
+                                        st.subheader("📋 Discovered Leads")
+                                        
+                                        # Get indicator evidence for display
+                                        indicator_evidence = {}
+                                        for i, lead in enumerate(review_leads):
+                                            company_lead = company_leads[i]
+                                            # Find first indicator with evidence
+                                            evidence_text = 'N/A'
+                                            for indicator_name, has_indicator in company_lead.target_indicators.items():
+                                                if has_indicator and indicator_name in company_lead.indicator_evidence:
+                                                    evidence = company_lead.indicator_evidence[indicator_name]
+                                                    if evidence:
+                                                        evidence_text = evidence[:100] + '...' if len(evidence) > 100 else evidence
+                                                        break
+                                            indicator_evidence[i] = evidence_text
+                                        
+                                        df = pd.DataFrame([{
+                                            'Company': lead.company_name,
+                                            'Website': company_leads[i].website or 'N/A',
+                                            'Phone': company_leads[i].phone or 'N/A',
+                                            'Target Found': '✅' if company_leads[i].has_any_indicator() else '❌',
+                                            'Indicator Evidence': indicator_evidence.get(i, 'N/A'),
+                                            'Score': f"{lead.lead_score:.1f}"
+                                        } for i, lead in enumerate(review_leads)])
+                                        st.dataframe(df, width='stretch', hide_index=True)
+                                    else:
+                                        st.warning(f"Found {len(company_leads)} companies, but none matched your target indicators.")
+                                        
+                                        # Show all companies found
+                                        st.subheader("📋 All Companies Found")
+                                        df = pd.DataFrame([{
+                                            'Company': lead.company_name,
+                                            'Website': lead.website or 'N/A',
+                                            'Address': lead.address or 'N/A',
+                                            'Phone': lead.phone or 'N/A'
+                                        } for lead in company_leads])
+                                        st.dataframe(df, width='stretch', hide_index=True)
                                     else:
                                         st.warning("No companies found. Try different search queries or check your API key.")
                                 except Exception as e:
@@ -1555,7 +1567,7 @@ def main():
                                         df = pd.DataFrame([{
                                             'Company': lead.company_name,
                                             'Job Posting': company_leads[i].description or 'N/A',
-                                            'Evidence': company_leads[i].avionte_evidence or 'N/A',
+                                            'Evidence': (company_leads[i].indicator_evidence.get(list(company_leads[i].target_indicators.keys())[0], 'N/A') if company_leads[i].has_any_indicator() and company_leads[i].indicator_evidence else 'N/A'),
                                             'Score': f"{lead.lead_score:.1f}"
                                         } for i, lead in enumerate(review_leads)])
                                         st.dataframe(df, width='stretch', hide_index=True)
@@ -1600,7 +1612,27 @@ def main():
                                 from urllib.parse import urlparse
                                 parsed = urlparse(normalized_url)
                                 domain = parsed.netloc.replace('www.', '')
-                                avionte_found, subdomain_url = check_avionte_subdomain(domain)
+                                # Check for all configured indicators
+                                from lead_config import load_indicators_from_file, check_subdomain_for_indicator
+                                indicators = load_indicators_from_file()
+                                if not indicators:
+                                    from lead_config import DEFAULT_INDICATORS
+                                    indicators = DEFAULT_INDICATORS
+                                
+                                indicator_found = False
+                                found_indicator_name = None
+                                found_subdomain_url = None
+                                
+                                for indicator in indicators:
+                                    found, subdomain_url = check_subdomain_for_indicator(domain, indicator)
+                                    if found:
+                                        indicator_found = True
+                                        found_indicator_name = indicator.name
+                                        found_subdomain_url = subdomain_url
+                                        break
+                                
+                                avionte_found = indicator_found
+                                subdomain_url = found_subdomain_url
                                 
                                 website_data = scrape_company_website(normalized_url)
                                 
@@ -1836,7 +1868,22 @@ def main():
                                         for idx, lead in enumerate(company_leads):
                                             if lead.website:
                                                 progress_bar.progress((idx + 1) / len(company_leads))
-                                                avionte_found, evidence = check_website_for_avionte(lead.website)
+                                                # Check for all configured indicators
+                                                from lead_config import load_indicators_from_file, check_company_for_indicators
+                                                indicators = load_indicators_from_file()
+                                                if not indicators:
+                                                    from lead_config import DEFAULT_INDICATORS
+                                                    indicators = DEFAULT_INDICATORS
+                                                
+                                                company_lead = check_company_for_indicators(lead.company_name, lead.website, indicators)
+                                                avionte_found = company_lead.has_any_indicator() if company_lead else False
+                                                # Get evidence from first found indicator
+                                                evidence = None
+                                                if company_lead and avionte_found:
+                                                    for indicator_name, has_indicator in company_lead.target_indicators.items():
+                                                        if has_indicator and indicator_name in company_lead.indicator_evidence:
+                                                            evidence = company_lead.indicator_evidence[indicator_name]
+                                                            break
                                                 if avionte_found:
                                                     lead.avionte_mention = True
                                                     lead.avionte_evidence = evidence  # This will be the subdomain URL
@@ -1902,7 +1949,7 @@ def main():
                                         df = pd.DataFrame([{
                                             'Company': lead.company_name,
                                             'Subdomain URL': company_leads[i].website or 'N/A',
-                                            'Evidence': company_leads[i].avionte_evidence or 'N/A',
+                                            'Evidence': (company_leads[i].indicator_evidence.get(list(company_leads[i].target_indicators.keys())[0], 'N/A') if company_leads[i].has_any_indicator() and company_leads[i].indicator_evidence else 'N/A'),
                                             'Score': f"{lead.lead_score:.1f}"
                                         } for i, lead in enumerate(review_leads)])
                                         st.dataframe(df, width='stretch', hide_index=True)
@@ -1973,7 +2020,7 @@ def main():
                                             df = pd.DataFrame([{
                                                 'Company': lead.company_name,
                                                 'Source': company_leads[i].source,
-                                                'Evidence': company_leads[i].avionte_evidence[:80] + '...' if company_leads[i].avionte_evidence and len(company_leads[i].avionte_evidence) > 80 else (company_leads[i].avionte_evidence or 'N/A'),
+                                                'Evidence': ((list(company_leads[i].indicator_evidence.values())[0][:80] + '...' if len(list(company_leads[i].indicator_evidence.values())[0]) > 80 else list(company_leads[i].indicator_evidence.values())[0]) if company_leads[i].has_any_indicator() and company_leads[i].indicator_evidence else 'N/A'),
                                                 'Score': f"{lead.lead_score:.1f}"
                                             } for i, lead in enumerate(review_leads)])
                                             st.dataframe(df, width='stretch', hide_index=True)

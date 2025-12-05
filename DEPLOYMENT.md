@@ -13,15 +13,22 @@ That's it! Your app will be live in minutes.
 
 ## Configure Secrets (Optional)
 
+**Important:** Never commit API keys to the repository. Use Streamlit Cloud secrets instead.
+
 If you want to use Google Places API:
 
 1. In Streamlit Cloud, go to your app
 2. Click **"⚙️ Settings"** → **"Secrets"**
-3. Add your API key:
+3. Add your API key in TOML format:
 
 ```toml
 GOOGLE_PLACES_API_KEY = "your-api-key-here"
 ```
+
+**How it works:**
+- Streamlit Cloud: Uses `st.secrets` (from GitHub secrets)
+- Local development: Uses `.env` file (gitignored, never committed)
+- The app automatically detects which to use
 
 ## What Gets Deployed
 

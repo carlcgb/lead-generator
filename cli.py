@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Command-line interface for Primlogix Avionté Lead Generator
+Command-line interface for Generic Lead Generator
 """
 import argparse
 import sys
@@ -107,15 +107,26 @@ def scrape_urls_cli(urls, save_to_db=True, export_csv=None):
     return all_leads
 
 def check_websites_cli(urls):
-    """Check websites for Avionté mentions from command line"""
+    """Check websites for target software indicators from command line"""
     try:
         from lead_discovery import check_website_for_avionte, scrape_company_website
+        from lead_config import load_indicators_from_file, check_company_for_indicators
     except ImportError:
         print("❌ Error: Lead discovery module not available")
         print("   Install: pip install googlemaps")
         return
     
-    print("🔍 Checking websites for Avionté mentions...\n")
+    # Load target indicators
+    try:
+        indicators = load_indicators_from_file()
+        if not indicators:
+            from lead_config import DEFAULT_INDICATORS
+            indicators = DEFAULT_INDICATORS
+    except:
+        from lead_config import DEFAULT_INDICATORS
+        indicators = DEFAULT_INDICATORS
+    
+    print("🔍 Checking websites for target software indicators...\n")
     
     results = []
     for idx, url in enumerate(urls, 1):
@@ -127,14 +138,27 @@ def check_websites_cli(urls):
             normalized_url = 'https://' + normalized_url
         
         try:
-            avionte_found, evidence = check_website_for_avionte(normalized_url)
             website_data = scrape_company_website(normalized_url)
+            company_name = website_data.get('company_name', normalized_url) if website_data else normalized_url
             
-            status = "✅ FOUND" if avionte_found else "❌ Not found"
+            # Check for indicators
+            company_lead = check_company_for_indicators(company_name, normalized_url, indicators)
+            has_indicators = company_lead.has_any_indicator() if company_lead else False
+            
+            status = "✅ FOUND" if has_indicators else "❌ Not found"
             print(f"  {status}")
             
-            if avionte_found:
-                print(f"  Evidence: {evidence[:100] if evidence else 'N/A'}")
+            if has_indicators and company_lead:
+                # Show found indicators
+                found_indicators = [name for name, found in company_lead.target_indicators.items() if found]
+                print(f"  Indicators: {', '.join(found_indicators)}")
+                # Show evidence for first found indicator
+                for indicator_name in found_indicators:
+                    if indicator_name in company_lead.indicator_evidence:
+                        evidence = company_lead.indicator_evidence[indicator_name]
+                        if evidence:
+                            print(f"  Evidence: {evidence[:100] if len(evidence) > 100 else evidence}")
+                            break
             
             if website_data:
                 if website_data.get('email'):
@@ -144,8 +168,9 @@ def check_websites_cli(urls):
             
             results.append({
                 'url': normalized_url,
-                'avionte_found': avionte_found,
-                'evidence': evidence,
+                'indicators_found': has_indicators,
+                'found_indicators': found_indicators if has_indicators else [],
+                'evidence': company_lead.indicator_evidence if company_lead else {},
                 'email': website_data.get('email') if website_data else None,
                 'phone': website_data.get('phone') if website_data else None
             })
@@ -153,31 +178,32 @@ def check_websites_cli(urls):
             print(f"  ✗ Error: {str(e)}")
             results.append({
                 'url': normalized_url,
-                'avionte_found': False,
+                'indicators_found': False,
+                'found_indicators': [],
                 'evidence': f"Error: {str(e)}",
                 'email': None,
                 'phone': None
             })
     
     # Summary
-    found_count = sum(1 for r in results if r['avionte_found'])
-    print(f"\n📊 Summary: {found_count}/{len(results)} websites mention Avionté")
+    found_count = sum(1 for r in results if r['indicators_found'])
+    print(f"\n📊 Summary: {found_count}/{len(results)} websites have target indicators")
     
     return results
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Primlogix Avionté Lead Generator - CLI',
+        description='Generic Lead Generator - CLI',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
   # Scrape review pages
-  python cli.py scrape --urls "https://g2.com/products/avionte-staffing-and-payroll/reviews"
+  python cli.py scrape --urls "https://g2.com/products/software/reviews"
   python cli.py scrape --urls "url1" "url2" "url3"
   python cli.py scrape --file urls.txt
   
-  # Check websites for Avionté
-  python cli.py check --urls "primlogix.com" "example-staffing.com"
+  # Check websites for target indicators
+  python cli.py check --urls "company1.com" "company2.com"
   python cli.py check --file websites.txt
   
   # Export to CSV
@@ -196,7 +222,7 @@ Examples:
     scrape_parser.add_argument('--export', help='Export to CSV file')
     
     # Check command
-    check_parser = subparsers.add_parser('check', help='Check websites for Avionté mentions')
+    check_parser = subparsers.add_parser('check', help='Check websites for target software indicators')
     check_parser.add_argument('--urls', nargs='+', help='One or more website URLs')
     check_parser.add_argument('--file', help='File containing URLs (one per line)')
     
