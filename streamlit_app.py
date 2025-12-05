@@ -2140,8 +2140,6 @@ def main():
                                             st.dataframe(df, width='stretch', hide_index=True)
                                         else:
                                             st.warning(f"Found {len(company_leads)} companies, but none matched your target indicators.")
-                                        else:
-                                            st.info(f"Found {len(company_leads)} companies, but none matched your target indicators.")
                                 else:
                                     st.info("No results found. Try different sources or queries.")
                             except Exception as e:
