@@ -1352,50 +1352,50 @@ def main():
             )
             
             if st.button("🔍 Find Target Software Users", type="primary", key="scrape_reviews"):
-            urls = [url.strip() for url in urls_text.split('\n') if url.strip()]
-            
-            if not urls:
-                st.error("Please enter at least one review URL")
-            else:
-                try:
-                    leads = scrape_review_pages(urls)
-                    
-                    if leads:
-                        saved, duplicates = save_leads_to_db(leads)
+                urls = [url.strip() for url in urls_text.split('\n') if url.strip()]
+                
+                if not urls:
+                    st.error("Please enter at least one review URL")
+                else:
+                    try:
+                        leads = scrape_review_pages(urls)
                         
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.success(f"✅ Found {len(leads)} negative reviews!")
-                            st.info(f"💾 Saved {saved} new leads to database")
-                        with col2:
-                            if duplicates > 0:
-                                st.warning(f"⚠️ Skipped {duplicates} duplicate leads")
-                        
-                        if hasattr(scrape_review_pages, 'last_errors') and scrape_review_pages.last_errors:
-                            st.error("Errors encountered:")
-                            for error in scrape_review_pages.last_errors:
-                                st.error(f"  • {error}")
-                        
-                        st.subheader("📋 Scraped Leads")
-                        df = pd.DataFrame([{
-                            'Score': f"{lead.lead_score:.1f}",
-                            'Reviewer': lead.reviewer_name,
-                            'Company': lead.company_name,
-                            'Rating': lead.rating or 'N/A',
-                            'Pain Tags': lead.pain_tags,
-                            'Title': lead.review_title[:60] + '...' if len(lead.review_title) > 60 else lead.review_title,
-                            'Source': lead.source_url
-                        } for lead in leads])
-                        st.dataframe(df, width='stretch', hide_index=True)
-                    else:
-                        st.warning("No negative reviews found. This could mean: (1) The pages use JavaScript to load content, (2) The CSS selectors don't match the page structure, or (3) There are no negative reviews matching the criteria.")
-                        
-                        if hasattr(scrape_review_pages, 'last_errors') and scrape_review_pages.last_errors:
-                            st.error("Errors encountered:")
-                            for error in scrape_review_pages.last_errors:
-                                st.error(f"  • {error}")
-                except Exception as e:
-                    st.error(f"Error during scraping: {str(e)}")
+                        if leads:
+                            saved, duplicates = save_leads_to_db(leads)
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.success(f"✅ Found {len(leads)} negative reviews!")
+                                st.info(f"💾 Saved {saved} new leads to database")
+                            with col2:
+                                if duplicates > 0:
+                                    st.warning(f"⚠️ Skipped {duplicates} duplicate leads")
+                            
+                            if hasattr(scrape_review_pages, 'last_errors') and scrape_review_pages.last_errors:
+                                st.error("Errors encountered:")
+                                for error in scrape_review_pages.last_errors:
+                                    st.error(f"  • {error}")
+                            
+                            st.subheader("📋 Scraped Leads")
+                            df = pd.DataFrame([{
+                                'Score': f"{lead.lead_score:.1f}",
+                                'Reviewer': lead.reviewer_name,
+                                'Company': lead.company_name,
+                                'Rating': lead.rating or 'N/A',
+                                'Pain Tags': lead.pain_tags,
+                                'Title': lead.review_title[:60] + '...' if len(lead.review_title) > 60 else lead.review_title,
+                                'Source': lead.source_url
+                            } for lead in leads])
+                            st.dataframe(df, width='stretch', hide_index=True)
+                        else:
+                            st.warning("No negative reviews found. This could mean: (1) The pages use JavaScript to load content, (2) The CSS selectors don't match the page structure, or (3) There are no negative reviews matching the criteria.")
+                            
+                            if hasattr(scrape_review_pages, 'last_errors') and scrape_review_pages.last_errors:
+                                st.error("Errors encountered:")
+                                for error in scrape_review_pages.last_errors:
+                                    st.error(f"  • {error}")
+                    except Exception as e:
+                        st.error(f"Error during scraping: {str(e)}")
         
         with tab2:
             st.subheader("💼 Indeed Company Reviews")
