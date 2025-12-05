@@ -18,6 +18,15 @@ from lead_discovery import (
     CompanyLead, check_avionte_subdomain, scrape_company_website, HEADERS
 )
 
+# Import configuration
+try:
+    from lead_config import (
+        TargetIndicator, DEFAULT_INDICATORS, load_indicators_from_file
+    )
+    CONFIG_AVAILABLE = True
+except ImportError:
+    CONFIG_AVAILABLE = False
+
 # Reddit API (using public JSON endpoints)
 def search_reddit_posts(subreddit: str, query: str, max_results: int = 25) -> List[CompanyLead]:
     """
@@ -49,542 +58,505 @@ def search_reddit_posts(subreddit: str, query: str, max_results: int = 25) -> Li
             data = response.json()
             posts = data.get('data', {}).get('children', [])
             
-            for post_data in posts[:max_results]:
-                post = post_data.get('data', {})
-                title = post.get('title', '')
-                selftext = post.get('selftext', '')
-                author = post.get('author', 'Unknown')
-                url = f"https://reddit.com{post.get('permalink', '')}"
-                created = datetime.fromtimestamp(post.get('created_utc', 0)).strftime("%Y-%m-%d %H:%M")
+            for post in posts:
+                post_data = post.get('data', {})
+                title = post_data.get('title', '')
+                selftext = post_data.get('selftext', '')
+                url = post_data.get('url', '')
+                author = post_data.get('author', 'Unknown')
                 
-                # Extract company name from post (look for staffing agencies)
+                # Try to extract company name from title or text
                 company_name = "Unknown"
+                # Look for company patterns in text
                 company_patterns = [
-                    r'(?:work(?:ing|s)?\s+(?:at|for|with))\s+([A-Z][a-zA-Z\s&]+(?:Staffing|Agency|Recruiting|Talent))',
-                    r'([A-Z][a-zA-Z\s&]+(?:Staffing|Agency|Recruiting|Talent))',
+                    r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:staffing|recruiting|agency|company)',
+                    r'company:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                    r'at\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
                 ]
+                full_text = f"{title} {selftext}"
                 for pattern in company_patterns:
-                    match = re.search(pattern, title + " " + selftext, re.IGNORECASE)
+                    match = re.search(pattern, full_text, re.IGNORECASE)
                     if match:
-                        company_name = match.group(1).strip()
+                        company_name = match.group(1)
                         break
                 
-                # Only add if we found a company name
-                if company_name != "Unknown":
-                    lead = CompanyLead(
-                        company_name=company_name,
-                        description=f"Reddit post: {title[:100]}",
-                        avionte_mention=False,  # Will be checked via subdomain
-                        avionte_evidence=None,
-                        source=f"reddit_r_{subreddit}",
-                        scraped_at=created
-                    )
-                    leads.append(lead)
-        
-        time.sleep(2)  # Rate limiting for Reddit
+                lead = CompanyLead(
+                    company_name=company_name,
+                    description=f"Reddit post: {title}",
+                    website=None,
+                    source="reddit",
+                    scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
+                )
+                leads.append(lead)
     except Exception as e:
-        print(f"Error searching Reddit r/{subreddit}: {e}")
+        print(f"Error searching Reddit: {e}")
     
     return leads
 
-def search_reddit_multiple_subreddits(queries: List[str], subreddits: List[str] = None, max_per_sub: int = 25) -> List[CompanyLead]:
-    """Search multiple Reddit subreddits for staffing agencies, then check for Avionté subdomains"""
-    if subreddits is None:
-        subreddits = ['recruiting', 'staffing', 'hrtech', 'humanresources', 'recruitinghell']
+def search_indeed_reviews(indicators: List[TargetIndicator] = None, max_results: int = 50) -> List[CompanyLead]:
+    """
+    Search Indeed company reviews for negative mentions of target software
     
-    all_leads = []
+    Args:
+        indicators: List of TargetIndicator to search for (defaults to DEFAULT_INDICATORS)
+        max_results: Maximum number of results per indicator
+    
+    Returns:
+        List of CompanyLead objects with negative reviews
+    """
+    if not CONFIG_AVAILABLE:
+        return []
+    
+    if indicators is None:
+        indicators = load_indicators_from_file()
+        if not indicators:
+            indicators = DEFAULT_INDICATORS
+    
+    leads = []
+    
+    # Negative keywords to identify bad reviews
+    negative_keywords = [
+        "terrible", "awful", "horrible", "worst", "bad", "hate", "disappointed",
+        "frustrated", "slow", "buggy", "broken", "doesn't work", "issues",
+        "problems", "complaint", "poor", "unreliable", "difficult", "confusing"
+    ]
+    
+    for indicator in indicators:
+        # Search for reviews mentioning the software with negative sentiment
+        search_queries = []
+        for keyword in indicator.keywords:
+            # Search for company reviews mentioning the software
+            search_queries.append(f'"{keyword}" review')
+            search_queries.append(f'"{keyword}" company review')
+        
+        for query in search_queries[:3]:  # Limit to 3 queries per indicator
+            try:
+                # Indeed company reviews search
+                base_url = "https://www.indeed.com/companies/search"
+                params = {
+                    'q': query,
+                    'from': 'discovery-cmp-search'
+                }
+                
+                response = requests.get(base_url, headers=HEADERS, params=params, timeout=15)
+                
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Find company review links
+                    company_links = soup.find_all('a', href=re.compile(r'/cmp/'))
+                    
+                    for link in company_links[:max_results]:
+                        try:
+                            company_name = link.get_text(strip=True)
+                            if not company_name:
+                                continue
+                            
+                            # Get company review page URL
+                            href = link.get('href', '')
+                            if not href.startswith('http'):
+                                href = f"https://www.indeed.com{href}"
+                            
+                            # Try to get reviews page
+                            reviews_url = href.replace('/cmp/', '/cmp/') + '/reviews'
+                            
+                            # Search for negative reviews mentioning the software
+                            review_response = requests.get(reviews_url, headers=HEADERS, timeout=15)
+                            
+                            if review_response.status_code == 200:
+                                review_soup = BeautifulSoup(review_response.text, 'html.parser')
+                                
+                                # Find review cards
+                                review_cards = review_soup.find_all('div', class_=lambda x: x and 'review' in str(x).lower())
+                                
+                                for card in review_cards[:10]:  # Check first 10 reviews
+                                    review_text = card.get_text(' ', strip=True).lower()
+                                    
+                                    # Check if review mentions the software and is negative
+                                    mentions_software = any(kw.lower() in review_text for kw in indicator.keywords)
+                                    is_negative = any(nkw in review_text for nkw in negative_keywords)
+                                    
+                                    if mentions_software and is_negative:
+                                        # Extract rating if available
+                                        rating_el = card.find(['span', 'div'], class_=lambda x: x and 'rating' in str(x).lower())
+                                        rating = None
+                                        if rating_el:
+                                            rating_match = re.search(r'(\d+)', rating_el.get_text())
+                                            if rating_match:
+                                                try:
+                                                    rating = float(rating_match.group(1))
+                                                    if rating > 3:  # Skip positive ratings
+                                                        continue
+                                                except:
+                                                    pass
+                                        
+                                        # Extract reviewer name
+                                        reviewer_el = card.find(['span', 'div'], class_=lambda x: x and ('author' in str(x).lower() or 'reviewer' in str(x).lower()))
+                                        reviewer_name = reviewer_el.get_text(strip=True) if reviewer_el else "Unknown"
+                                        
+                                        # Create lead
+                                        lead = CompanyLead(
+                                            company_name=company_name,
+                                            description=f"Indeed review mentioning {indicator.name}: {review_text[:200]}",
+                                            website=None,
+                                            source=f"indeed_reviews_{indicator.name.lower()}",
+                                            scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
+                                        )
+                                        
+                                        # Mark that this indicator was found
+                                        lead.target_indicators = {indicator.name: True}
+                                        lead.indicator_evidence = {indicator.name: reviews_url}
+                                        
+                                        leads.append(lead)
+                                        break  # One lead per company is enough
+                            
+                            time.sleep(1)  # Rate limiting
+                        except Exception as e:
+                            continue
+                
+                time.sleep(2)  # Rate limiting between queries
+            except Exception as e:
+                print(f"Error searching Indeed reviews for {indicator.name}: {e}")
+                continue
+    
+    return leads
+
+def search_linkedin_reviews(indicators: List[TargetIndicator] = None, max_results: int = 50) -> List[CompanyLead]:
+    """
+    Search LinkedIn posts/comments for negative mentions of target software
+    
+    Note: LinkedIn has strict anti-scraping measures. This function uses public search
+    but may have limited results.
+    
+    Args:
+        indicators: List of TargetIndicator to search for (defaults to DEFAULT_INDICATORS)
+        max_results: Maximum number of results per indicator
+    
+    Returns:
+        List of CompanyLead objects with negative mentions
+    """
+    if not CONFIG_AVAILABLE:
+        return []
+    
+    if indicators is None:
+        indicators = load_indicators_from_file()
+        if not indicators:
+            indicators = DEFAULT_INDICATORS
+    
+    leads = []
+    
+    # Negative keywords
+    negative_keywords = [
+        "terrible", "awful", "horrible", "worst", "bad", "hate", "disappointed",
+        "frustrated", "slow", "buggy", "broken", "doesn't work", "issues",
+        "problems", "complaint", "poor", "unreliable", "difficult", "confusing"
+    ]
+    
+    for indicator in indicators:
+        for keyword in indicator.keywords[:2]:  # Limit keywords
+            try:
+                # LinkedIn public search (limited without authentication)
+                # Note: LinkedIn requires authentication for most content
+                # This is a basic implementation that may have limited results
+                
+                search_url = "https://www.linkedin.com/search/results/content/"
+                params = {
+                    'keywords': f'"{keyword}" (terrible OR awful OR worst OR bad OR hate OR frustrated OR slow OR buggy)',
+                    'origin': 'GLOBAL_SEARCH_HEADER'
+                }
+                
+                # LinkedIn often blocks scraping, so we'll use a simpler approach
+                # Search for posts mentioning the software
+                # Note: This may not work without proper authentication
+                
+                # For now, return empty list with a note that LinkedIn requires authentication
+                # In a production environment, you would need LinkedIn API access
+                print(f"Note: LinkedIn search requires authentication. Skipping LinkedIn reviews for {indicator.name}.")
+                
+            except Exception as e:
+                print(f"Error searching LinkedIn for {indicator.name}: {e}")
+                continue
+    
+    return leads
+
+def discover_leads_from_indeed_reviews(indicators: List[TargetIndicator] = None, max_results: int = 50) -> List[CompanyLead]:
+    """
+    Discover leads from Indeed reviews mentioning target software negatively
+    
+    Args:
+        indicators: List of TargetIndicator to search for
+        max_results: Maximum results per indicator
+    
+    Returns:
+        List of CompanyLead objects
+    """
+    return search_indeed_reviews(indicators, max_results)
+
+def discover_leads_from_linkedin_reviews(indicators: List[TargetIndicator] = None, max_results: int = 50) -> List[CompanyLead]:
+    """
+    Discover leads from LinkedIn posts/comments mentioning target software negatively
+    
+    Args:
+        indicators: List of TargetIndicator to search for
+        max_results: Maximum results per indicator
+    
+    Returns:
+        List of CompanyLead objects
+    """
+    return search_linkedin_reviews(indicators, max_results)
+
+def discover_leads_from_reddit(subreddits: List[str], queries: List[str], max_results: int = 25) -> List[CompanyLead]:
+    """
+    Discover leads from Reddit posts
+    
+    Args:
+        subreddits: List of subreddit names to search
+        queries: List of search queries
+        max_results: Maximum results per subreddit/query combination
+    
+    Returns:
+        List of CompanyLead objects
+    """
+    leads = []
+    
     for subreddit in subreddits:
         for query in queries:
-            leads = search_reddit_posts(subreddit, query, max_per_sub)
-            all_leads.extend(leads)
-            time.sleep(1)  # Rate limiting
+            try:
+                subreddit_leads = search_reddit_posts(subreddit, query, max_results)
+                leads.extend(subreddit_leads)
+                time.sleep(1)  # Rate limiting
+            except Exception as e:
+                print(f"Error searching Reddit r/{subreddit} for '{query}': {e}")
+                continue
     
-    # Check all leads for Avionté subdomains
-    for lead in all_leads:
-        if lead.company_name and lead.company_name != "Unknown":
-            # Try to construct domain from company name
-            # This is a best guess - ideally we'd have the actual domain
-            company_domain = f"{lead.company_name.replace(' ', '').lower()}.com"
-            found, subdomain = check_avionte_subdomain(company_domain)
-            if found:
-                lead.avionte_mention = True
-                lead.avionte_evidence = subdomain
-                lead.website = subdomain
-    
-    return all_leads
+    return leads
 
-# Use the function from lead_discovery instead of duplicating
-from lead_discovery import check_avionte_subdomain
-
-def search_linkedin_jobs(query: str = "Avionté", location: str = "United States", max_results: int = 50) -> List[CompanyLead]:
+def discover_leads_from_subdomain_check(company_domains: List[str], indicators: List[TargetIndicator] = None) -> List[CompanyLead]:
     """
-    Search LinkedIn job postings (public search)
-    Note: LinkedIn has strict anti-scraping, so this is limited
+    Discover leads by checking subdomains for target software
+    
+    Args:
+        company_domains: List of company domain names (e.g., ["primlogix.com"])
+        indicators: List of TargetIndicator to check (defaults to DEFAULT_INDICATORS)
+    
+    Returns:
+        List of CompanyLead objects with confirmed subdomain matches
+    """
+    if not CONFIG_AVAILABLE:
+        return []
+    
+    if indicators is None:
+        indicators = load_indicators_from_file()
+        if not indicators:
+            indicators = DEFAULT_INDICATORS
+    
+    leads = []
+    
+    from lead_config import check_subdomain_for_indicator
+    
+    for domain in company_domains:
+        domain = domain.strip().replace('www.', '').replace('https://', '').replace('http://', '').split('/')[0]
+        
+        for indicator in indicators:
+            try:
+                found, subdomain_url = check_subdomain_for_indicator(domain, indicator)
+                if found:
+                    lead = CompanyLead(
+                        company_name=domain.split('.')[0].title(),
+                        website=f"https://{domain}",
+                        source="subdomain_check",
+                        scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
+                    )
+                    lead.target_indicators = {indicator.name: True}
+                    lead.indicator_evidence = {indicator.name: subdomain_url}
+                    leads.append(lead)
+                    break  # Found one indicator, move to next company
+            except Exception as e:
+                continue
+    
+    return leads
+
+def discover_leads_from_news(queries: List[str], max_results: int = 20) -> List[CompanyLead]:
+    """
+    Discover leads from news articles mentioning companies
+    
+    Args:
+        queries: List of search queries
+        max_results: Maximum results per query
+    
+    Returns:
+        List of CompanyLead objects
     """
     leads = []
     
-    try:
-        # LinkedIn public job search URL
-        search_url = "https://www.linkedin.com/jobs/search"
-        params = {
-            'keywords': query,
-            'location': location,
-        }
-        
-        response = requests.get(search_url, params=params, headers=HEADERS, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
+    # Use Google News search
+    for query in queries:
+        try:
+            search_url = "https://news.google.com/search"
+            params = {
+                'q': query,
+                'hl': 'en',
+                'gl': 'US',
+                'ceid': 'US:en'
+            }
             
-            # LinkedIn job cards (structure may vary)
-            job_cards = soup.find_all('div', class_=lambda x: x and 'job-search-card' in str(x).lower())
+            response = requests.get(search_url, headers=HEADERS, params=params, timeout=15)
             
-            for card in job_cards[:max_results]:
-                try:
-                    # Extract company name
-                    company_el = card.find('h4', class_=lambda x: x and 'company' in str(x).lower()) or \
-                               card.find('a', class_=lambda x: x and 'company' in str(x).lower())
-                    
-                    if company_el:
-                        company_name = company_el.get_text(strip=True)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Find article links
+                articles = soup.find_all('article')[:max_results]
+                
+                for article in articles:
+                    try:
+                        link = article.find('a', href=True)
+                        if not link:
+                            continue
                         
-                        # Add all companies found, will check subdomain later
-                        lead = CompanyLead(
-                            company_name=company_name,
-                            description=f"LinkedIn job posting",
-                            avionte_mention=False,  # Will be checked via subdomain
-                            avionte_evidence=None,
-                            source="linkedin_jobs",
-                            scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
-                        )
-                        leads.append(lead)
-                except:
-                    continue
-    except Exception as e:
-        print(f"Error searching LinkedIn jobs: {e}")
-    
-    return leads
-
-def search_glassdoor_reviews(company_name: str = "Avionté", max_results: int = 20) -> List[CompanyLead]:
-    """
-    Search Glassdoor for companies reviewing Avionté or mentioning it
-    Note: Glassdoor has strict anti-scraping, so this is limited
-    """
-    leads = []
-    
-    try:
-        # Glassdoor search
-        search_url = f"https://www.glassdoor.com/Reviews/{company_name.replace(' ', '-')}-reviews"
-        response = requests.get(search_url, headers=HEADERS, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Extract company names from reviews (basic extraction)
-            # Glassdoor structure is complex, this is a simplified approach
-            pass
-    except Exception as e:
-        print(f"Error searching Glassdoor: {e}")
-    
-    return leads
-
-def search_news_articles(query: str = "Avionté staffing software", max_results: int = 20) -> List[CompanyLead]:
-    """
-    Search news articles for Avionté mentions using Google News
-    """
-    leads = []
-    
-    try:
-        # Google News search
-        search_url = "https://news.google.com/search"
-        params = {
-            'q': query,
-            'hl': 'en',
-            'gl': 'US',
-            'ceid': 'US:en'
-        }
-        
-        response = requests.get(search_url, params=params, headers=HEADERS, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Google News article links
-            articles = soup.find_all('article')[:max_results]
-            
-            for article in articles:
-                try:
-                    link = article.find('a')
-                    if link:
                         title = link.get_text(strip=True)
                         href = link.get('href', '')
                         
                         # Try to extract company name from title
                         company_name = "Unknown"
-                        company_match = re.search(r'([A-Z][a-zA-Z\s&]+(?:Staffing|Agency|Recruiting))', title)
-                        if company_match:
-                            company_name = company_match.group(1).strip()
+                        company_patterns = [
+                            r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:announces|reports|launches)',
+                            r'(?:at|from)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                        ]
+                        for pattern in company_patterns:
+                            match = re.search(pattern, title)
+                            if match:
+                                company_name = match.group(1)
+                                break
                         
-                        if company_name != "Unknown":
-                            lead = CompanyLead(
-                                company_name=company_name,
-                                description=f"News article: {title[:100]}",
-                                avionte_mention=False,  # Will be checked via subdomain
-                                avionte_evidence=None,
-                                source="news_articles",
-                                scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
-                            )
-                            leads.append(lead)
-                except:
-                    continue
-    except Exception as e:
-        print(f"Error searching news: {e}")
+                        lead = CompanyLead(
+                            company_name=company_name,
+                            description=f"News: {title}",
+                            website=None,
+                            source="news",
+                            scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
+                        )
+                        leads.append(lead)
+                    except:
+                        continue
+                
+                time.sleep(1)  # Rate limiting
+        except Exception as e:
+            print(f"Error searching news for '{query}': {e}")
+            continue
     
     return leads
 
-def search_industry_directories(query: str = "staffing agency", location: str = "United States", max_results: int = 50) -> List[CompanyLead]:
+def discover_leads_from_directories(queries: List[str], location: str = "United States", max_results: int = 50) -> List[CompanyLead]:
     """
-    Search industry directories (Yellow Pages, industry-specific directories)
+    Discover leads from business directories (Yellow Pages, etc.)
+    
+    Args:
+        queries: List of search queries
+        location: Location to search
+        max_results: Maximum results per query
+    
+    Returns:
+        List of CompanyLead objects
     """
     leads = []
     
-    try:
-        # Yellow Pages search
-        yp_url = "https://www.yellowpages.com/search"
-        params = {
-            'search_terms': query,
-            'geo_location_terms': location
-        }
-        
-        response = requests.get(yp_url, params=params, headers=HEADERS, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
+    for query in queries:
+        try:
+            # Yellow Pages search
+            search_url = "https://www.yellowpages.com/search"
+            params = {
+                'search_terms': query,
+                'geo_location_terms': location
+            }
             
-            # Yellow Pages business listings
-            listings = soup.find_all('div', class_=lambda x: x and 'result' in str(x).lower())[:max_results]
+            response = requests.get(search_url, headers=HEADERS, params=params, timeout=15)
             
-            for listing in listings:
-                try:
-                    name_el = listing.find('a', class_=lambda x: x and 'business-name' in str(x).lower())
-                    if name_el:
-                        company_name = name_el.get_text(strip=True)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Find business listings
+                listings = soup.find_all('div', class_=lambda x: x and 'result' in str(x).lower())[:max_results]
+                
+                for listing in listings:
+                    try:
+                        name_el = listing.find(['h2', 'h3', 'a'], class_=lambda x: x and ('name' in str(x).lower() or 'title' in str(x).lower()))
+                        company_name = name_el.get_text(strip=True) if name_el else "Unknown"
                         
-                        # Get website if available
-                        website = None
-                        website_el = listing.find('a', class_=lambda x: x and 'track-visit-website' in str(x).lower())
-                        if website_el:
-                            website = website_el.get('href', '')
+                        website_el = listing.find('a', href=re.compile(r'http'))
+                        website = website_el.get('href') if website_el else None
                         
-                        # Get phone
-                        phone = None
-                        phone_el = listing.find('div', class_=lambda x: x and 'phone' in str(x).lower())
-                        if phone_el:
-                            phone = phone_el.get_text(strip=True)
+                        phone_el = listing.find(['span', 'div'], class_=lambda x: x and 'phone' in str(x).lower())
+                        phone = phone_el.get_text(strip=True) if phone_el else None
                         
                         lead = CompanyLead(
                             company_name=company_name,
                             website=website,
                             phone=phone,
-                            source="yellow_pages",
+                            source="directory",
                             scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
                         )
                         leads.append(lead)
-                except:
-                    continue
-    except Exception as e:
-        print(f"Error searching directories: {e}")
-    
-    return leads
-
-def search_quora_questions(query: str = "Avionté alternatives", max_results: int = 20) -> List[CompanyLead]:
-    """
-    Search Quora for questions about Avionté
-    """
-    leads = []
-    
-    try:
-        # Quora search
-        search_url = f"https://www.quora.com/search"
-        params = {
-            'q': query
-        }
-        
-        response = requests.get(search_url, params=params, headers=HEADERS, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Quora questions
-            questions = soup.find_all('div', class_=lambda x: x and 'question' in str(x).lower())[:max_results]
-            
-            for question in questions:
-                try:
-                    question_text = question.get_text(strip=True)
-                    # Try to extract company name
-                    company_name = "Unknown"
-                    company_match = re.search(r'([A-Z][a-zA-Z\s&]+(?:Staffing|Agency|Recruiting))', question_text, re.IGNORECASE)
-                    if company_match:
-                        company_name = company_match.group(1).strip()
-                    
-                    if company_name != "Unknown":
-                        lead = CompanyLead(
-                            company_name=company_name,
-                            description=f"Quora question: {question_text[:200]}",
-                            avionte_mention=False,  # Will be checked via subdomain
-                            avionte_evidence=None,
-                            source="quora",
-                            scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
-                        )
-                        leads.append(lead)
-                except:
-                    continue
-    except Exception as e:
-        print(f"Error searching Quora: {e}")
-    
-    return leads
-
-def search_twitter_mentions(query: str = "Avionté", max_results: int = 50) -> List[CompanyLead]:
-    """
-    Search Twitter/X for Avionté mentions
-    Note: Twitter API requires authentication, so this uses public search
-    """
-    leads = []
-    
-    try:
-        # Twitter public search (may be limited)
-        search_url = f"https://twitter.com/search"
-        params = {
-            'q': query,
-            'src': 'typed_query',
-            'f': 'live'
-        }
-        
-        response = requests.get(search_url, params=params, headers=HEADERS, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Twitter tweets (structure varies)
-            tweets = soup.find_all('article')[:max_results]
-            
-            for tweet in tweets:
-                try:
-                    tweet_text = tweet.get_text(strip=True)
-                    # Try to extract company name
-                    company_name = "Unknown"
-                    company_match = re.search(r'([A-Z][a-zA-Z\s&]+(?:Staffing|Agency|Recruiting))', tweet_text, re.IGNORECASE)
-                    if company_match:
-                        company_name = company_match.group(1).strip()
-                    
-                    # Also try username
-                    if company_name == "Unknown":
-                        user_el = tweet.find('span', class_=lambda x: x and 'username' in str(x).lower())
-                        if user_el:
-                            company_name = user_el.get_text(strip=True)
-                    
-                    if company_name != "Unknown":
-                        lead = CompanyLead(
-                            company_name=company_name,
-                            description=f"Twitter/X: {tweet_text[:200]}",
-                            avionte_mention=False,  # Will be checked via subdomain
-                            avionte_evidence=None,
-                            source="twitter",
-                            scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
-                        )
-                        leads.append(lead)
-                except:
-                    continue
-    except Exception as e:
-        print(f"Error searching Twitter: {e}")
-    
-    return leads
-
-def discover_leads_from_reddit(
-    queries: List[str] = ["Avionté", "Avionte", "Avionte alternatives"],
-    subreddits: List[str] = None,
-    max_per_sub: int = 25
-) -> List[CompanyLead]:
-    """Discover leads from Reddit"""
-    return search_reddit_multiple_subreddits(queries, subreddits, max_per_sub)
-
-def discover_leads_from_subdomain_check(company_domains: List[str]) -> List[CompanyLead]:
-    """
-    Check multiple company domains for Avionté subdomain usage
-    
-    Args:
-        company_domains: List of company domains to check
-    
-    Returns:
-        List of CompanyLead objects for companies using Avionté (only those with confirmed subdomains)
-    """
-    leads = []
-    
-    for domain in company_domains:
-        found, subdomain_url = check_avionte_subdomain(domain)
-        if found:
-            # Extract company name from domain
-            company_name = domain.replace('www.', '').split('.')[0].title()
-            
-            lead = CompanyLead(
-                company_name=company_name,
-                website=subdomain_url,
-                avionte_mention=True,  # Confirmed via subdomain
-                avionte_evidence=f"Confirmed Avionté user - subdomain: {subdomain_url}",
-                source="subdomain_check",
-                scraped_at=datetime.now().strftime("%Y-%m-%d %H:%M")
-            )
-            leads.append(lead)
-        
-        time.sleep(0.5)  # Rate limiting
-    
-    return leads
-
-def check_leads_for_avionte_subdomains(leads: List[CompanyLead]) -> List[CompanyLead]:
-    """
-    Check all leads for Avionté subdomains and update their avionte_mention status
-    
-    Args:
-        leads: List of CompanyLead objects
-    
-    Returns:
-        Updated list with avionte_mention set based on subdomain check
-    """
-    for lead in leads:
-        # Skip if already confirmed
-        if lead.avionte_mention:
+                    except:
+                        continue
+                
+                time.sleep(1)  # Rate limiting
+        except Exception as e:
+            print(f"Error searching directories for '{query}': {e}")
             continue
-        
-        # Try to get domain from website or construct from company name
-        domain = None
-        if lead.website:
-            from urllib.parse import urlparse
-            parsed = urlparse(lead.website if lead.website.startswith(('http://', 'https://')) else f'https://{lead.website}')
-            domain = parsed.netloc.replace('www.', '')
-        elif lead.company_name and lead.company_name != "Unknown":
-            # Construct domain from company name (best guess)
-            domain = f"{lead.company_name.replace(' ', '').lower()}.com"
-        
-        if domain:
-            found, subdomain_url = check_avionte_subdomain(domain)
-            if found:
-                lead.avionte_mention = True
-                lead.avionte_evidence = f"Confirmed via subdomain: {subdomain_url}"
-                if not lead.website:
-                    lead.website = subdomain_url
-        
-        time.sleep(0.3)  # Rate limiting
     
     return leads
-
-def discover_leads_from_news(
-    queries: List[str] = ["Avionté staffing", "Avionte software review"],
-    max_per_query: int = 20
-) -> List[CompanyLead]:
-    """Discover leads from news articles"""
-    all_leads = []
-    
-    for query in queries:
-        leads = search_news_articles(query, max_per_query)
-        all_leads.extend(leads)
-        time.sleep(2)  # Rate limiting
-    
-    return all_leads
-
-def discover_leads_from_directories(
-    queries: List[str] = ["staffing agency", "temporary staffing", "employment agency"],
-    location: str = "United States",
-    max_per_query: int = 50
-) -> List[CompanyLead]:
-    """Discover leads from industry directories"""
-    all_leads = []
-    
-    for query in queries:
-        leads = search_industry_directories(query, location, max_per_query)
-        all_leads.extend(leads)
-        time.sleep(2)  # Rate limiting
-    
-    return all_leads
 
 def discover_leads_comprehensive(
     sources: List[str] = None,
-    check_subdomains: bool = True,
-    **kwargs
+    indicators: List[TargetIndicator] = None,
+    max_results: int = 50
 ) -> List[CompanyLead]:
     """
     Comprehensive lead discovery from multiple sources
     
     Args:
-        sources: List of sources to use: ['reddit', 'linkedin', 'news', 'directories', 'subdomain', 'quora', 'twitter']
-        check_subdomains: Whether to check all leads for Avionté subdomains (default: True)
-        **kwargs: Additional parameters for each source
+        sources: List of sources to search ('reddit', 'news', 'directories', 'subdomain', 'indeed_reviews', 'linkedin_reviews')
+        indicators: List of TargetIndicator to search for
+        max_results: Maximum results per source
     
     Returns:
-        Combined list of CompanyLead objects (only those with confirmed Avionté subdomains if check_subdomains=True)
+        List of CompanyLead objects
     """
     if sources is None:
         sources = ['reddit', 'news', 'directories']
     
     all_leads = []
     
+    if 'indeed_reviews' in sources:
+        indeed_leads = discover_leads_from_indeed_reviews(indicators, max_results)
+        all_leads.extend(indeed_leads)
+    
+    if 'linkedin_reviews' in sources:
+        linkedin_leads = discover_leads_from_linkedin_reviews(indicators, max_results)
+        all_leads.extend(linkedin_leads)
+    
     if 'reddit' in sources:
-        reddit_queries = kwargs.get('reddit_queries', ["staffing agency", "recruiting"])
-        reddit_subs = kwargs.get('reddit_subreddits', ['recruiting', 'staffing', 'hrtech'])
-        leads = discover_leads_from_reddit(reddit_queries, reddit_subs)
-        all_leads.extend(leads)
-        print(f"✓ Reddit: Found {len(leads)} companies")
+        # Default Reddit search
+        reddit_leads = discover_leads_from_reddit(
+            ['recruiting', 'staffing', 'hr'],
+            ['staffing software', 'recruiting software'],
+            max_results
+        )
+        all_leads.extend(reddit_leads)
     
     if 'news' in sources:
-        news_queries = kwargs.get('news_queries', ["staffing software", "recruiting software"])
-        leads = discover_leads_from_news(news_queries)
-        all_leads.extend(leads)
-        print(f"✓ News: Found {len(leads)} companies")
+        news_leads = discover_leads_from_news(
+            ['staffing agency', 'recruiting firm'],
+            max_results
+        )
+        all_leads.extend(news_leads)
     
     if 'directories' in sources:
-        dir_queries = kwargs.get('directory_queries', ["staffing agency"])
-        location = kwargs.get('location', "United States")
-        leads = discover_leads_from_directories(dir_queries, location)
-        all_leads.extend(leads)
-        print(f"✓ Directories: Found {len(leads)} companies")
-    
-    if 'subdomain' in sources:
-        domains = kwargs.get('company_domains', [])
-        if domains:
-            leads = discover_leads_from_subdomain_check(domains)
-            all_leads.extend(leads)
-            print(f"✓ Subdomain check: Found {len(leads)} confirmed Avionté users")
-    
-    if 'quora' in sources:
-        quora_queries = kwargs.get('quora_queries', ["staffing software", "recruiting software"])
-        leads = []
-        for query in quora_queries:
-            leads.extend(search_quora_questions(query))
-        all_leads.extend(leads)
-        print(f"✓ Quora: Found {len(leads)} companies")
-    
-    if 'twitter' in sources:
-        twitter_queries = kwargs.get('twitter_queries', ["staffing agency"])
-        leads = []
-        for query in twitter_queries:
-            leads.extend(search_twitter_mentions(query))
-        all_leads.extend(leads)
-        print(f"✓ Twitter: Found {len(leads)} companies")
-    
-    if 'linkedin' in sources:
-        linkedin_queries = kwargs.get('linkedin_queries', ["staffing agency"])
-        location = kwargs.get('location', "United States")
-        leads = []
-        for query in linkedin_queries:
-            leads.extend(search_linkedin_jobs(query, location))
-        all_leads.extend(leads)
-        print(f"✓ LinkedIn: Found {len(leads)} companies")
-    
-    # Check all leads for Avionté subdomains
-    if check_subdomains and all_leads:
-        print(f"🔍 Checking {len(all_leads)} companies for Avionté subdomains...")
-        all_leads = check_leads_for_avionte_subdomains(all_leads)
-        confirmed_count = sum(1 for lead in all_leads if lead.avionte_mention)
-        print(f"✓ Found {confirmed_count} confirmed Avionté users via subdomain check")
+        dir_leads = discover_leads_from_directories(
+            ['staffing agency', 'recruiting firm'],
+            max_results=max_results
+        )
+        all_leads.extend(dir_leads)
     
     return all_leads
-

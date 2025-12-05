@@ -40,6 +40,8 @@ try:
         discover_leads_from_news,
         discover_leads_from_directories,
         discover_leads_comprehensive,
+        discover_leads_from_indeed_reviews,
+        discover_leads_from_linkedin_reviews,
         search_reddit_posts,
         check_avionte_subdomain
     )

@@ -33,6 +33,12 @@ DEFAULT_INDICATORS = [
         subdomain_pattern="*.mindscope.com",
         keywords=["mindscope"],
         link_patterns=["mindscope.com"]
+    ),
+    TargetIndicator(
+        name="Bullhorn",
+        subdomain_pattern="*.bullhorn.com",
+        keywords=["bullhorn"],
+        link_patterns=["bullhorn.com"]
     )
 ]
 
