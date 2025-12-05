@@ -69,10 +69,11 @@ else:
         PLAYWRIGHT_DISABLED_REASON = "Playwright not installed. Run: pip install playwright && playwright install chromium"
         sync_playwright = None
 
-# Show warning if Playwright is disabled (only in Streamlit context)
+# Show info if Playwright is disabled (only in Streamlit context)
+# Note: Playwright is optional - the app works fine without it
 if not PLAYWRIGHT_AVAILABLE and PLAYWRIGHT_DISABLED_REASON:
     try:
-        st.warning(f"⚠️  Playwright disabled: {PLAYWRIGHT_DISABLED_REASON}. The app will use requests library instead.")
+        st.info(f"ℹ️  Playwright is optional. The app uses the `requests` library by default. Some JavaScript-heavy sites may not work without Playwright.")
     except:
         # Not in Streamlit context, just print
         pass
@@ -1193,21 +1194,20 @@ def scrape_review_pages(urls: List[str], max_pages: int = 3) -> List[LeadReview]
                 site_name = url.split('/')[2] if '/' in url else url
                 if "Playwright not available" in error_msg:
                     if not playwright_warning_shown:
-                        st.warning(
-                            "⚠️ **Playwright not available** - Some sites require JavaScript rendering.\n\n"
-                            "**Solutions:**\n"
-                            "1. Try: `playwright install chromium`\n"
-                            "2. Use Python 3.11/3.12 instead of 3.13+\n"
-                            "3. Use the 'Website Checker' tab in 'Discover Leads' for manual checking\n"
-                            "4. Try different review sites that don't require JavaScript"
+                        st.info(
+                            "ℹ️ **Playwright is optional** - The app works without it using the `requests` library.\n\n"
+                            "**If you need JavaScript rendering:**\n"
+                            "1. Install: `pip install playwright && playwright install chromium`\n"
+                            "2. Use Python 3.11/3.12 (3.13+ has compatibility issues)\n\n"
+                            "**Alternative:** Try different review sites or use the 'Website Checker' tab for manual checking."
                         )
                         playwright_warning_shown = True
-                    errors.append(f"{url}: Blocked (403) - Playwright required but not available. Try a different site or install Playwright.")
+                    errors.append(f"{url}: Blocked (403) - Site requires JavaScript rendering. Try a different site or install Playwright (optional).")
                 else:
                     errors.append(
                         f"{url}: Blocked (403 Forbidden) - {site_name} is blocking automated access.\n"
                         f"💡 **Tip:** This site may require JavaScript rendering or may block scrapers.\n"
-                        f"   Try: (1) Using Playwright if available, (2) Different review sites, or (3) Manual checking"
+                        f"   Try: (1) Different review sites that allow scraping, (2) Manual checking via 'Website Checker' tab, or (3) Install Playwright for JavaScript rendering (optional)"
                     )
             else:
                 errors.append(f"{url}: {error_msg}")

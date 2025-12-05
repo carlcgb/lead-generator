@@ -130,6 +130,8 @@ Edit `indicators.json`:
 - Python 3.8+
 - See `requirements.txt` for dependencies
 
+**Note:** Playwright is optional. The app works with just the `requests` library. Install Playwright separately only if you need JavaScript rendering for specific sites.
+
 ## Documentation
 
 All documentation is organized in the [`docs/`](docs/) directory:
