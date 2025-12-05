@@ -1562,6 +1562,9 @@ def main():
                                     # Billing or API configuration error
                                     st.error(str(e))
                                     st.stop()
+                                except Exception as e:
+                                    st.error(f"Error during discovery: {str(e)}")
+                                    st.stop()
                                 
                                 if company_leads:
                                     # Convert to LeadReview format
@@ -1625,8 +1628,6 @@ def main():
                                         st.dataframe(df, width='stretch', hide_index=True)
                                 else:
                                     st.warning("No companies found. Try different search queries or check your API key.")
-                                except Exception as e:
-                                    st.error(f"Error during discovery: {str(e)}")
             
             with tab2:
                 st.subheader("💼 Discover from Job Boards")
