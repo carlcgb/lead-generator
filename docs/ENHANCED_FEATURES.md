@@ -1,5 +1,7 @@
 # Enhanced Lead Generation Features
 
+> **Tags:** `#features` `#discovery` `#reddit` `#news` `#directories` `#advanced`
+
 ## 🚀 New Lead Sources Added
 
 ### 1. 📱 Reddit Discovery

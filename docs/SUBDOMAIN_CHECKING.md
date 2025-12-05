@@ -1,5 +1,7 @@
 # Subdomain-Based Lead Verification
 
+> **Tags:** `#subdomain` `#verification` `#technical` `#accuracy`
+
 ## Overview
 
 The lead generator has been updated to use **subdomain verification** as the primary method for identifying Avionté users, replacing keyword-based detection.

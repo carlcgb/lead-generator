@@ -1,5 +1,11 @@
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
+# Project Context (Legacy)
+
+> **Tags:** `#legacy` `#context` `#business-context` `#historical`
+
+**Note:** This file contains legacy context. The project has been refactored to be generic.
+
 # Primlogix Avionté Lead Generation Scraper - COMPLETE CONTEXT
 
 ## Business Context

@@ -1,5 +1,7 @@
 # Generic Lead Generator
 
+> **Tags:** `#lead-generation` `#web-scraping` `#streamlit` `#python` `#sales-tools`
+
 A powerful, configurable lead generation tool that can discover companies using any target software or indicators you specify.
 
 ## Features
@@ -122,10 +124,15 @@ Edit `indicators.json`:
 
 ## Documentation
 
-- [Generic Lead Generator Guide](GENERIC_LEAD_GENERATOR.md) - Configuration and usage
-- [Lead Discovery README](LEAD_DISCOVERY_README.md) - Discovery features
-- [CLI README](CLI_README.md) - Command-line usage
-- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
+All documentation is organized in the [`docs/`](docs/) directory:
+
+- **[📖 Documentation Index](docs/README.md)** - Complete documentation index
+- **[⚙️ Configuration Guide](docs/GENERIC_LEAD_GENERATOR.md)** - Configure target indicators
+- **[🔍 Lead Discovery](docs/LEAD_DISCOVERY_README.md)** - Discovery features
+- **[🚀 Enhanced Features](docs/ENHANCED_FEATURES.md)** - Advanced discovery methods
+- **[🔗 Subdomain Checking](docs/SUBDOMAIN_CHECKING.md)** - Verification methods
+- **[💻 CLI Guide](docs/CLI_README.md)** - Command-line usage
+- **[🔧 Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## License
 

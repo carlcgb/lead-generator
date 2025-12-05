@@ -1,5 +1,7 @@
 # Troubleshooting Guide
 
+> **Tags:** `#troubleshooting` `#help` `#errors` `#playwright` `#api-keys`
+
 ## Common Issues and Solutions
 
 ### 1. Playwright NotImplementedError

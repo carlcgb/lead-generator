@@ -1,5 +1,7 @@
 # Command Line Interface (CLI) Guide
 
+> **Tags:** `#cli` `#command-line` `#automation` `#scripting`
+
 The CLI allows you to run the lead generator from the command line without the Streamlit UI.
 
 ## Installation

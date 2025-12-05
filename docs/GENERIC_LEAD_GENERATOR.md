@@ -1,5 +1,7 @@
 # Generic Lead Generator - Configuration Guide
 
+> **Tags:** `#configuration` `#getting-started` `#setup` `#target-indicators`
+
 ## Overview
 
 The lead generator has been refactored to be **completely generic** - it can search for any target software or indicators you configure. No more hardcoded Avionté references!

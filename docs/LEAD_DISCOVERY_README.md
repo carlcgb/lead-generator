@@ -1,5 +1,7 @@
 # Lead Discovery Features
 
+> **Tags:** `#discovery` `#features` `#google-places` `#job-boards` `#website-checker`
+
 This module adds multi-source lead discovery capabilities to find potential Avionté users beyond review sites.
 
 ## Features
