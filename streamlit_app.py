@@ -1350,7 +1350,16 @@ def main():
         with tab1:
             st.subheader("Review Sites (G2, GetApp, TrustRadius, etc.)")
             st.markdown("Enter review page URLs (one per line) containing reviews. Only use sites where scraping is allowed by their terms.")
-            st.info("✅ **Recommended sites:** G2.com, GetApp.com, TrustRadius.com, SoftwareAdvice.com\n\n❌ **Do NOT use:** Capterra.com (explicitly forbids automation)")
+            st.warning("⚠️ **Note:** Many review sites (G2, GetApp, SoftwareAdvice, Indeed) now block automated scraping with 403 errors. If you encounter blocking, try the other tabs:")
+            st.info("""
+            **Alternative Discovery Methods:**
+            - **💼 Indeed Reviews tab**: Search Indeed company reviews directly (works better than scraping)
+            - **🌐 Discover Leads tab**: Find companies via Google Places, Job Boards, or Website Checker
+            - **🚀 Advanced Discovery tab**: Search Reddit, News articles, Directories, and Subdomain Checker
+            
+            **Sites that may work:** TrustRadius.com (sometimes), or use the alternative methods above.
+            """)
+            st.info("❌ **Do NOT use:** Capterra.com (explicitly forbids automation)")
             
             urls_text = st.text_area(
                 "Review Page URLs:",
