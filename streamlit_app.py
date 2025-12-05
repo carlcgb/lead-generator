@@ -104,13 +104,8 @@ def get_db():
 def init_db():
     """Initialize the database with leads table"""
     db = get_db()
-    # Check if reviewer_name column exists, if not add it
-    try:
-        db.execute('SELECT reviewer_name FROM leads LIMIT 1')
-    except sqlite3.OperationalError:
-        db.execute('ALTER TABLE leads ADD COLUMN reviewer_name TEXT')
-        db.commit()
     
+    # Create table first (if it doesn't exist)
     db.execute('''
         CREATE TABLE IF NOT EXISTS leads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,17 +126,30 @@ def init_db():
             converted_at TEXT
         )
     ''')
+    db.commit()
     
-    # Add new columns if they don't exist
-    try:
-        db.execute('SELECT lead_score FROM leads LIMIT 1')
-    except sqlite3.OperationalError:
-        db.execute('ALTER TABLE leads ADD COLUMN lead_score REAL DEFAULT 0')
-        db.execute('ALTER TABLE leads ADD COLUMN status TEXT DEFAULT "new"')
-        db.execute('ALTER TABLE leads ADD COLUMN notes TEXT')
-        db.execute('ALTER TABLE leads ADD COLUMN contacted_at TEXT')
-        db.execute('ALTER TABLE leads ADD COLUMN converted_at TEXT')
-        db.commit()
+    # Add columns if they don't exist (SQLite doesn't support IF NOT EXISTS for ALTER TABLE)
+    # Check each column individually and add if missing
+    columns_to_add = [
+        ('reviewer_name', 'TEXT'),
+        ('lead_score', 'REAL DEFAULT 0'),
+        ('status', 'TEXT DEFAULT "new"'),
+        ('notes', 'TEXT'),
+        ('contacted_at', 'TEXT'),
+        ('converted_at', 'TEXT')
+    ]
+    
+    for column_name, column_type in columns_to_add:
+        try:
+            db.execute(f'SELECT {column_name} FROM leads LIMIT 1')
+        except sqlite3.OperationalError:
+            # Column doesn't exist, add it
+            try:
+                db.execute(f'ALTER TABLE leads ADD COLUMN {column_name} {column_type}')
+                db.commit()
+            except sqlite3.OperationalError:
+                # Column might have been added by another process, ignore
+                pass
     
     # Create indexes
     db.execute('CREATE INDEX IF NOT EXISTS idx_company_name ON leads(company_name)')
