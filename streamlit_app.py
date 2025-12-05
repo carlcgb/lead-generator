@@ -1216,11 +1216,18 @@ def scrape_review_pages(urls: List[str], max_pages: int = 3) -> List[LeadReview]
                         playwright_warning_shown = True
                     errors.append(f"{url}: Blocked (403) - Site requires JavaScript rendering. Try a different site or install Playwright (optional).")
                 else:
-                    errors.append(
-                        f"{url}: Blocked (403 Forbidden) - {site_name} is blocking automated access.\n"
-                        f"💡 **Tip:** This site may require JavaScript rendering or may block scrapers.\n"
-                        f"   Try: (1) Different review sites that allow scraping, (2) Manual checking via 'Website Checker' tab, or (3) Install Playwright for JavaScript rendering (optional)"
-                    )
+                    # Provide site-specific suggestions
+                    if 'indeed.com' in url:
+                        suggestion = "💡 **Tip:** Use the '💼 Indeed Reviews' tab instead - it searches Indeed company reviews directly!"
+                    elif 'g2.com' in url or 'getapp.com' in url or 'softwareadvice.com' in url or 'trustradius.com' in url:
+                        suggestion = "💡 **Tip:** These sites block automated scraping. Try:\n" \
+                                   "   • Use the '💼 Indeed Reviews' tab to search Indeed reviews\n" \
+                                   "   • Use the '🌐 Discover Leads' tab (Google Places, Job Boards)\n" \
+                                   "   • Use the '🚀 Advanced Discovery' tab (Reddit, News, Directories)"
+                    else:
+                        suggestion = "💡 **Tip:** This site blocks automated access. Try using other discovery methods in the app."
+                    
+                    errors.append(f"{url}: ❌ Blocked (403 Forbidden) - {site_name} is blocking automated access.\n{suggestion}")
             else:
                 errors.append(f"{url}: {error_msg}")
         except RuntimeError as e:
