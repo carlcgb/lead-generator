@@ -1623,8 +1623,8 @@ def main():
                                             'Phone': lead.phone or 'N/A'
                                         } for lead in company_leads])
                                         st.dataframe(df, width='stretch', hide_index=True)
-                                    else:
-                                        st.warning("No companies found. Try different search queries or check your API key.")
+                                else:
+                                    st.warning("No companies found. Try different search queries or check your API key.")
                                 except Exception as e:
                                     st.error(f"Error during discovery: {str(e)}")
             
