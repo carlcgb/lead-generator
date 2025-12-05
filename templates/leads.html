@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stored Leads - Primlogix</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .stats { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .stats h3 { margin-top: 0; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-item { background: white; padding: 10px; border-radius: 4px; }
+        .filters { margin-bottom: 20px; padding: 15px; background: #e9ecef; border-radius: 4px; }
+        .filters form { display: flex; gap: 10px; align-items: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: bold; position: sticky; top: 0; }
+        .pain-tags { background: #fff3cd; padding: 4px 8px; border-radius: 12px; font-size: 0.9em; margin: 2px; display: inline-block; }
+        .btn { padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 5px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 0.9em; }
+        .alert { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .lead-score { font-weight: bold; padding: 4px 8px; border-radius: 4px; }
+        .score-high { background: #28a745; color: white; }
+        .score-medium { background: #ffc107; color: #000; }
+        .score-low { background: #dc3545; color: white; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.85em; font-weight: bold; }
+        .status-new { background: #007bff; color: white; }
+        .status-contacted { background: #17a2b8; color: white; }
+        .status-converted { background: #28a745; color: white; }
+        .status-lost { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Stored Leads Database</h1>
+        <div>
+            <a href="/analytics" class="btn btn-primary">📈 Analytics</a>
+            <a href="/" class="btn btn-secondary">🔄 New Search</a>
+            <a href="/download" class="btn btn-success">📥 Download All CSV</a>
+        </div>
+    </div>
+    
+    {% if analytics %}
+    <div class="stats">
+        <h3>📈 Quick Stats</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <strong>Total Leads:</strong> {{ analytics.total }}
+            </div>
+            <div class="stat-item">
+                <strong>Avg Score:</strong> {{ analytics.avg_score }}/100
+            </div>
+            <div class="stat-item">
+                <strong>High Value (70+):</strong> {{ analytics.high_value_leads }}
+            </div>
+            {% if analytics.by_status %}
+                {% for status, count in analytics.by_status.items() %}
+                <div class="stat-item">
+                    <strong>{{ status|title }}:</strong> {{ count }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="filters">
+        <form method="GET" action="/leads" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+            <div>
+                <label>Pain Tag:</label>
+                <select name="pain" style="width: 100%; padding: 5px;">
+                    <option value="">All</option>
+                    <option value="complexity" {% if pain_filter == 'complexity' %}selected{% endif %}>Complexity</option>
+                    <option value="bugs" {% if pain_filter == 'bugs' %}selected{% endif %}>Bugs</option>
+                    <option value="support" {% if pain_filter == 'support' %}selected{% endif %}>Support</option>
+                    <option value="integration" {% if pain_filter == 'integration' %}selected{% endif %}>Integration</option>
+                    <option value="cost" {% if pain_filter == 'cost' %}selected{% endif %}>Cost</option>
+                    <option value="performance" {% if pain_filter == 'performance' %}selected{% endif %}>Performance</option>
+                </select>
+            </div>
+            <div>
+                <label>Status:</label>
+                <select name="status" style="width: 100%; padding: 5px;">
+                    <option value="">All</option>
+                    <option value="new" {% if status_filter == 'new' %}selected{% endif %}>New</option>
+                    <option value="contacted" {% if status_filter == 'contacted' %}selected{% endif %}>Contacted</option>
+                    <option value="converted" {% if status_filter == 'converted' %}selected{% endif %}>Converted</option>
+                    <option value="lost" {% if status_filter == 'lost' %}selected{% endif %}>Lost</option>
+                </select>
+            </div>
+            <div>
+                <label>Min Score:</label>
+                <input type="number" name="min_score" value="{{ min_score or '' }}" min="0" max="100" placeholder="0" style="width: 100%; padding: 5px;">
+            </div>
+            <div>
+                <label>Sort By:</label>
+                <select name="sort_by" style="width: 100%; padding: 5px;">
+                    <option value="lead_score" {% if sort_by == 'lead_score' %}selected{% endif %}>Score (High→Low)</option>
+                    <option value="rating" {% if sort_by == 'rating' %}selected{% endif %}>Rating (Low→High)</option>
+                    <option value="recent" {% if sort_by == 'recent' %}selected{% endif %}>Most Recent</option>
+                    <option value="company" {% if sort_by == 'company' %}selected{% endif %}>Company Name</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: flex-end; gap: 5px;">
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
+                <a href="/leads" class="btn btn-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+    
+    {% if leads %}
+    <div class="alert alert-info">
+        Showing {{ leads|length }} leads{% if pain_filter %} filtered by "{{ pain_filter }}"{% endif %}
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Reviewer</th>
+                <th>Company</th>
+                <th>Rating</th>
+                <th>Pain Tags</th>
+                <th>Review Title</th>
+                <th>Review Preview</th>
+                <th>Source</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lead in leads %}
+            <tr>
+                <td>
+                    {% set score = lead.lead_score or 0 %}
+                    {% if score >= 70 %}
+                        <span class="lead-score score-high">{{ "%.0f"|format(score) }}</span>
+                    {% elif score >= 40 %}
+                        <span class="lead-score score-medium">{{ "%.0f"|format(score) }}</span>
+                    {% else %}
+                        <span class="lead-score score-low">{{ "%.0f"|format(score) }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="status-badge status-{{ lead.status or 'new' }}">{{ (lead.status or 'new')|title }}</span>
+                </td>
+                <td><strong>{{ lead.reviewer_name or 'Unknown' }}</strong></td>
+                <td><strong>{{ lead.company_name or 'N/A' }}</strong></td>
+                <td>{{ "%.1f"|format(lead.rating) if lead.rating else 'N/A' }}</td>
+                <td>
+                    {% if lead.pain_tags %}
+                        {% for tag in lead.pain_tags.split(',') %}
+                            <span class="pain-tags">{{ tag }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="pain-tags">No tags</span>
+                    {% endif %}
+                </td>
+                <td>{{ lead.review_title or 'N/A' }}</td>
+                <td>{{ lead.review_text[:100] }}...</td>
+                <td><a href="{{ lead.source_url }}" target="_blank">View</a></td>
+                <td>
+                    <form method="POST" action="/lead/{{ lead.id }}/update" style="display: inline;">
+                        <select name="status" onchange="this.form.submit()" style="padding: 3px; font-size: 0.85em;">
+                            <option value="new" {% if lead.status == 'new' %}selected{% endif %}>New</option>
+                            <option value="contacted" {% if lead.status == 'contacted' %}selected{% endif %}>Contacted</option>
+                            <option value="converted" {% if lead.status == 'converted' %}selected{% endif %}>Converted</option>
+                            <option value="lost" {% if lead.status == 'lost' %}selected{% endif %}>Lost</option>
+                        </select>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-info">
+        No leads found{% if pain_filter %} with pain tag "{{ pain_filter }}"{% endif %}. 
+        <a href="/">Start scraping to add leads!</a>
+    </div>
+    {% endif %}
+</body>
+</html>
+
