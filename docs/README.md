@@ -17,6 +17,9 @@ This directory contains all documentation for the Generic Lead Generator project
 ### Troubleshooting
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
 
+### Legacy
+- **[Context](context.md)** - Historical project context (legacy)
+
 ## 🏷️ Tags
 
 All documentation is tagged for easy navigation:

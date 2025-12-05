@@ -41,6 +41,7 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+leads.db
 
 # Logs
 *.log
@@ -54,10 +55,12 @@ Thumbs.db
 
 # Project specific
 indicators.json
-leads.db
 __pycache__/
 
 # Test files
 test_*.py
 *_test.py
 
+# Legacy files (deprecated)
+# app.py - Legacy Flask app, replaced by streamlit_app.py
+# templates/ - Legacy Flask templates, not used with Streamlit

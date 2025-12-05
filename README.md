@@ -111,10 +111,18 @@ Edit `indicators.json`:
 ├── lead_discovery.py         # Core discovery functions
 ├── enhanced_lead_discovery.py # Advanced discovery methods
 ├── cli.py                    # Command-line interface
-├── app.py                    # Legacy Flask app (deprecated)
 ├── requirements.txt          # Python dependencies
-├── indicators.json           # Target indicators configuration
-└── leads.db                  # SQLite database for leads
+├── env_template.txt          # Environment variables template
+├── docs/                     # Documentation directory
+│   ├── README.md             # Documentation index
+│   ├── GENERIC_LEAD_GENERATOR.md
+│   ├── LEAD_DISCOVERY_README.md
+│   ├── CLI_README.md
+│   ├── ENHANCED_FEATURES.md
+│   ├── SUBDOMAIN_CHECKING.md
+│   ├── TROUBLESHOOTING.md
+│   └── context.md            # Legacy context (historical)
+└── .gitignore                # Git ignore rules
 ```
 
 ## Requirements
