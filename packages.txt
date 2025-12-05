@@ -1,0 +1,4 @@
+# System packages required for Playwright (if needed)
+# Note: Playwright may not work in Streamlit Cloud due to Python 3.13+ compatibility
+# The app will automatically fall back to requests library
+

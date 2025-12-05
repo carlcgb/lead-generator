@@ -142,6 +142,22 @@ All documentation is organized in the [`docs/`](docs/) directory:
 - **[💻 CLI Guide](docs/CLI_README.md)** - Command-line usage
 - **[🔧 Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
+## Deployment
+
+### Streamlit Community Cloud (Free)
+
+**Quick Deploy:**
+1. Go to [share.streamlit.io](https://share.streamlit.io)
+2. Sign in with GitHub
+3. Click "New app"
+4. Select repository: `carlcgb/lead-generator`
+5. Main file: `streamlit_app.py`
+6. Click "Deploy"
+
+**Your app will be live at:** `https://lead-generator.streamlit.app`
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions and troubleshooting.
+
 ## License
 
 MIT License
